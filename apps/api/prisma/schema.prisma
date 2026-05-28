@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionType {
+  CODING
+  LEARNING
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum GoalCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+  MILESTONE
+}
+
+model User {
+  id               String            @id @default(cuid())
+  name             String
+  email            String            @unique
+  timezone         String            @default("Africa/Johannesburg")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  projects         Project[]
+  codingSessions   CodingSession[]
+  learningSessions LearningSession[]
+  goals            Goal[]
+  weeklySummaries  WeeklySummary[]
+}
+
+model Technology {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  category         String
+  color            String
+  createdAt        DateTime          @default(now())
+  projects         ProjectTechnology[]
+  codingSessions   CodingSessionTechnology[]
+  learningSessions LearningSessionTechnology[]
+}
+
+model Project {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String
+  status      String              @default("active")
+  repository  String?
+  liveUrl     String?
+  startedAt   DateTime
+  shippedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  sessions    CodingSession[]
+  goals       Goal[]
+  technologies ProjectTechnology[]
+}
+
+model ProjectTechnology {
+  projectId    String
+  technologyId String
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  technology   Technology @relation(fields: [technologyId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, technologyId])
+}
+
+model CodingSession {
+  id           String                    @id @default(cuid())
+  userId       String
+  projectId    String?
+  user         User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title        String
+  notes        String?
+  minutes      Int
+  focusScore   Int                       @default(3)
+  sessionDate  DateTime
+  createdAt    DateTime                  @default(now())
+  technologies CodingSessionTechnology[]
+}
+
+model CodingSessionTechnology {
+  codingSessionId String
+  technologyId    String
+  codingSession   CodingSession @relation(fields: [codingSessionId], references: [id], onDelete: Cascade)
+  technology      Technology    @relation(fields: [technologyId], references: [id], onDelete: Cascade)
+
+  @@id([codingSessionId, technologyId])
+}
+
+model LearningSession {
+  id           String                      @id @default(cuid())
+  userId       String
+  user         User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic        String
+  source       String
+  notes        String?
+  minutes      Int
+  confidence   Int                         @default(3)
+  sessionDate  DateTime
+  createdAt    DateTime                    @default(now())
+  technologies LearningSessionTechnology[]
+}
+
+model LearningSessionTechnology {
+  learningSessionId String
+  technologyId      String
+  learningSession   LearningSession @relation(fields: [learningSessionId], references: [id], onDelete: Cascade)
+  technology        Technology      @relation(fields: [technologyId], references: [id], onDelete: Cascade)
+
+  @@id([learningSessionId, technologyId])
+}
+
+model Goal {
+  id          String      @id @default(cuid())
+  userId      String
+  projectId   String?
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  cadence     GoalCadence
+  status      GoalStatus  @default(ACTIVE)
+  targetValue Int
+  currentValue Int        @default(0)
+  unit        String
+  dueDate     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model WeeklySummary {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart DateTime
+  content   String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, weekStart])
+}

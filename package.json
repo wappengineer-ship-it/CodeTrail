@@ -1,0 +1,26 @@
+{
+  "name": "codetrail",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A coding and learning tracker for self-taught developers.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write .",
+    "db:generate": "npm run db:generate -w @codetrail/api",
+    "db:migrate": "npm run db:migrate -w @codetrail/api",
+    "db:seed": "npm run db:seed -w @codetrail/api"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
