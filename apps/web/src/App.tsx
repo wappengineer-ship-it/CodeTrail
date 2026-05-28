@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode, SubmitEvent } from 'react';
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -48,7 +47,7 @@ export function App() {
   const firstProject = bootstrap?.projects[0];
   const firstTechnology = bootstrap?.technologies[0];
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!bootstrap) return;
 
@@ -178,17 +177,17 @@ export function App() {
                 <h2>Daily coding hours</h2>
               </div>
             </div>
-            <div className="chart-frame">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dashboard.chart}>
+            <ChartSurface height={290}>
+              {({ width, height }) => (
+                <AreaChart width={width} height={height} data={dashboard.chart}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
                   <XAxis dataKey="date" tickFormatter={(date) => date.slice(5)} tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={32} />
                   <Tooltip />
                   <Area type="monotone" dataKey="hours" stroke="#2f80ed" fill="#b9d7ff" strokeWidth={2} />
                 </AreaChart>
-              </ResponsiveContainer>
-            </div>
+              )}
+            </ChartSurface>
           </article>
 
           <article id="sessions" className="panel log-panel">
@@ -296,17 +295,17 @@ export function App() {
                 <h2>Technology focus</h2>
               </div>
             </div>
-            <div className="chart-frame compact">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboard.technologies} layout="vertical" margin={{ left: 12, right: 12 }}>
+            <ChartSurface height={230} className="compact">
+              {({ width, height }) => (
+                <BarChart width={width} height={height} data={dashboard.technologies} layout="vertical" margin={{ left: 12, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" width={82} tickLine={false} axisLine={false} />
                   <Tooltip />
                   <Bar dataKey="hours" fill="#3a8f5a" radius={[0, 6, 6, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
+              )}
+            </ChartSurface>
           </article>
 
           <article id="insights" className="panel insight-panel">
@@ -346,6 +345,38 @@ export function App() {
         </section>
       </section>
     </main>
+  );
+}
+
+function ChartSurface({
+  children,
+  className = '',
+  height,
+}: {
+  children: (size: { width: number; height: number }) => ReactNode;
+  className?: string;
+  height: number;
+}) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    function updateWidth() {
+      setWidth(Math.floor(frameRef.current?.getBoundingClientRect().width ?? 0));
+    }
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    const frame = frameRef.current;
+    if (frame) observer.observe(frame);
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={frameRef} className={`chart-frame ${className}`} style={{ height }}>
+      {width > 0 ? children({ width, height }) : null}
+    </div>
   );
 }
 

@@ -40,6 +40,14 @@ async function main() {
   const prismaTech = byName.get('Prisma')!;
   const css = byName.get('CSS')!;
 
+  await prisma.$transaction([
+    prisma.weeklySummary.deleteMany({ where: { userId: user.id } }),
+    prisma.goal.deleteMany({ where: { userId: user.id } }),
+    prisma.codingSession.deleteMany({ where: { userId: user.id } }),
+    prisma.learningSession.deleteMany({ where: { userId: user.id } }),
+    prisma.project.deleteMany({ where: { userId: user.id } }),
+  ]);
+
   const codeTrail = await prisma.project.create({
     data: {
       userId: user.id,

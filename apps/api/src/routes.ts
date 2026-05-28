@@ -3,11 +3,16 @@ import { prisma } from './prisma.js';
 import { daysAgo, startOfWeek, toHours } from './dates.js';
 import { goalCreateSchema, projectCreateSchema, sessionCreateSchema } from './validators.js';
 import { env } from './env.js';
+import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
 
 export const router = Router();
 
 async function getDemoUser() {
   return prisma.user.findFirstOrThrow({ orderBy: { createdAt: 'asc' } });
+}
+
+function isDevelopmentFallbackAllowed() {
+  return env.NODE_ENV !== 'production';
 }
 
 router.get('/bootstrap', async (_req, res, next) => {
@@ -37,6 +42,10 @@ router.get('/bootstrap', async (_req, res, next) => {
 
     res.json({ user, technologies, projects, goals, recentCoding, recentLearning });
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.json(fallbackBootstrap);
+      return;
+    }
     next(error);
   }
 });
@@ -77,10 +86,11 @@ router.get('/dashboard', async (_req, res, next) => {
       });
     });
 
-    const streak = [...days.values()].reverse().reduce((count, minutes) => {
-      if (count === -1) return -1;
-      return minutes > 0 ? count + 1 : -1;
-    }, 0);
+    let streak = 0;
+    for (const minutes of [...days.values()].reverse()) {
+      if (minutes <= 0) break;
+      streak += 1;
+    }
 
     const chart = [...days.entries()].map(([date, minutes]) => ({ date, hours: toHours(minutes) }));
     const technologies = [...techMinutes.values()]
@@ -108,6 +118,10 @@ router.get('/dashboard', async (_req, res, next) => {
       ],
     });
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.json(fallbackDashboard);
+      return;
+    }
     next(error);
   }
 });
@@ -155,6 +169,10 @@ router.post('/sessions', async (req, res, next) => {
     });
     res.status(201).json(session);
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.status(202).json({ ok: true, persisted: false, reason: 'Database is not ready in local development.' });
+      return;
+    }
     next(error);
   }
 });
@@ -180,6 +198,10 @@ router.post('/projects', async (req, res, next) => {
     });
     res.status(201).json(project);
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.status(202).json({ ok: true, persisted: false, reason: 'Database is not ready in local development.' });
+      return;
+    }
     next(error);
   }
 });
@@ -203,6 +225,10 @@ router.post('/goals', async (req, res, next) => {
     });
     res.status(201).json(goal);
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.status(202).json({ ok: true, persisted: false, reason: 'Database is not ready in local development.' });
+      return;
+    }
     next(error);
   }
 });
@@ -236,6 +262,10 @@ router.post('/summaries/weekly', async (_req, res, next) => {
     const summary = await prisma.weeklySummary.create({ data: { userId: user.id, weekStart, content } });
     res.status(201).json(summary);
   } catch (error) {
+    if (isDevelopmentFallbackAllowed()) {
+      res.json(fallbackWeeklySummary());
+      return;
+    }
     next(error);
   }
 });
