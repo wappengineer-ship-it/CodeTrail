@@ -40,13 +40,20 @@ async function main() {
   const prismaTech = byName.get('Prisma')!;
   const css = byName.get('CSS')!;
 
-  await prisma.$transaction([
-    prisma.weeklySummary.deleteMany({ where: { userId: user.id } }),
-    prisma.goal.deleteMany({ where: { userId: user.id } }),
-    prisma.codingSession.deleteMany({ where: { userId: user.id } }),
-    prisma.learningSession.deleteMany({ where: { userId: user.id } }),
-    prisma.project.deleteMany({ where: { userId: user.id } }),
-  ]);
+  const shouldResetDemoData = process.env.RESET_SEED === 'true' || process.env.NODE_ENV !== 'production';
+  const existingProjectCount = await prisma.project.count({ where: { userId: user.id } });
+
+  if (shouldResetDemoData) {
+    await prisma.$transaction([
+      prisma.weeklySummary.deleteMany({ where: { userId: user.id } }),
+      prisma.goal.deleteMany({ where: { userId: user.id } }),
+      prisma.codingSession.deleteMany({ where: { userId: user.id } }),
+      prisma.learningSession.deleteMany({ where: { userId: user.id } }),
+      prisma.project.deleteMany({ where: { userId: user.id } }),
+    ]);
+  } else if (existingProjectCount > 0) {
+    return;
+  }
 
   const codeTrail = await prisma.project.create({
     data: {

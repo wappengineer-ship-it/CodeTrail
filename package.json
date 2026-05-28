@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "db:generate": "npm run db:generate -w @codetrail/api",
     "db:migrate": "npm run db:migrate -w @codetrail/api",
+    "db:deploy": "npm run db:deploy -w @codetrail/api",
     "db:seed": "npm run db:seed -w @codetrail/api"
   },
   "devDependencies": {

@@ -3,9 +3,9 @@ services:
     name: codetrail-api
     runtime: node
     plan: free
-    rootDir: apps/api
-    buildCommand: npm install && npm run db:generate && npm run build
-    startCommand: npm run start
+    buildCommand: npm install --include=dev && npm run db:generate -w @codetrail/api && npm run build -w @codetrail/api
+    preDeployCommand: npm run db:deploy -w @codetrail/api && npm run db:seed -w @codetrail/api
+    startCommand: npm run start -w @codetrail/api
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,20 +14,16 @@ services:
           name: codetrail-db
           property: connectionString
       - key: CORS_ORIGIN
-        value: "*"
+        value: "https://codetrail-web.onrender.com"
 
   - type: web
     name: codetrail-web
     runtime: static
-    rootDir: apps/web
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    buildCommand: npm install --include=dev && npm run build -w @codetrail/web
+    staticPublishPath: apps/web/dist
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: codetrail-api
-          property: host
+        value: "https://codetrail-api.onrender.com"
 
 databases:
   - name: codetrail-db

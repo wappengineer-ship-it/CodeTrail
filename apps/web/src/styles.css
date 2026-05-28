@@ -270,6 +270,72 @@ h2 {
   margin-top: 18px;
 }
 
+.timer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 76px;
+  padding: 14px;
+  border: 1px solid #d8e1ee;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.timer-card span,
+.timer-card strong {
+  display: block;
+}
+
+.timer-card span {
+  color: #5f6f85;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.timer-card strong {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.65rem;
+}
+
+.timer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #cdd6e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #18202f;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: #9eb2ca;
+  background: #eef4ff;
+}
+
+.icon-button.start {
+  border-color: #9cc9ae;
+  color: #246d42;
+}
+
+.icon-button.stop {
+  border-color: #e1aea6;
+  color: #a03b2e;
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 label,
 fieldset {
   display: grid;

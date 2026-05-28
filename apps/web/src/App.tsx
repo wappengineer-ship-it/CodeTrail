@@ -18,8 +18,11 @@ import {
   Flame,
   Goal,
   Loader2,
+  Play,
   Plus,
+  RotateCcw,
   Sparkles,
+  Square,
   TimerReset,
 } from 'lucide-react';
 import { createSession, generateWeeklySummary, loadBootstrap, loadDashboard } from './api';
@@ -32,7 +35,12 @@ export function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [mode, setMode] = useState<SessionMode>('CODING');
   const [isSaving, setIsSaving] = useState(false);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [manualMinutes, setManualMinutes] = useState('60');
   const [summary, setSummary] = useState('');
+  const timerStartedAt = useRef<number | null>(null);
+  const elapsedBeforeStart = useRef(0);
 
   async function refresh() {
     const [bootstrapData, dashboardData] = await Promise.all([loadBootstrap(), loadDashboard()]);
@@ -43,6 +51,17 @@ export function App() {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (!isTimerRunning || timerStartedAt.current === null) return;
+
+    const intervalId = window.setInterval(() => {
+      const secondsSinceStart = Math.floor((Date.now() - timerStartedAt.current!) / 1000);
+      setElapsedSeconds(elapsedBeforeStart.current + secondsSinceStart);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isTimerRunning]);
 
   const firstProject = bootstrap?.projects[0];
   const firstTechnology = bootstrap?.technologies[0];
@@ -68,12 +87,40 @@ export function App() {
         technologyIds: form.getAll('technologyIds'),
       });
       event.currentTarget.reset();
+      resetTimer();
+      setManualMinutes('60');
       await refresh();
     } catch {
       setSummary('The local API is not connected yet, so this session stayed in the browser preview. Once PostgreSQL is configured, saves will persist.');
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function startTimer() {
+    elapsedBeforeStart.current = elapsedSeconds;
+    timerStartedAt.current = Date.now();
+    setIsTimerRunning(true);
+  }
+
+  function stopTimer() {
+    if (timerStartedAt.current !== null) {
+      const secondsSinceStart = Math.floor((Date.now() - timerStartedAt.current) / 1000);
+      const totalSeconds = elapsedBeforeStart.current + secondsSinceStart;
+      setElapsedSeconds(totalSeconds);
+      setManualMinutes(String(Math.max(5, Math.ceil(totalSeconds / 60))));
+      elapsedBeforeStart.current = totalSeconds;
+    }
+
+    timerStartedAt.current = null;
+    setIsTimerRunning(false);
+  }
+
+  function resetTimer() {
+    timerStartedAt.current = null;
+    elapsedBeforeStart.current = 0;
+    setElapsedSeconds(0);
+    setIsTimerRunning(false);
   }
 
   async function handleSummary() {
@@ -207,6 +254,37 @@ export function App() {
             </div>
 
             <form onSubmit={handleSubmit} className="session-form">
+              <div className="timer-card">
+                <div>
+                  <span>Timer</span>
+                  <strong>{formatDuration(elapsedSeconds)}</strong>
+                </div>
+                <div className="timer-actions">
+                  <button type="button" className="icon-button start" onClick={startTimer} disabled={isTimerRunning} aria-label="Start timer" title="Start timer">
+                    <Play size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button stop"
+                    onClick={stopTimer}
+                    disabled={!isTimerRunning && elapsedSeconds === 0}
+                    aria-label="Stop timer"
+                    title="Stop timer"
+                  >
+                    <Square size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    onClick={resetTimer}
+                    disabled={elapsedSeconds === 0 && !isTimerRunning}
+                    aria-label="Reset timer"
+                    title="Reset timer"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                </div>
+              </div>
               <label>
                 <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
                 <input name="title" defaultValue={mode === 'CODING' ? 'Feature implementation' : 'Study notes'} required />
@@ -214,7 +292,15 @@ export function App() {
               <div className="form-row">
                 <label>
                   <span>Minutes</span>
-                  <input name="minutes" type="number" min="5" max="1440" defaultValue="60" required />
+                  <input
+                    name="minutes"
+                    type="number"
+                    min="5"
+                    max="1440"
+                    value={manualMinutes}
+                    onChange={(event) => setManualMinutes(event.target.value)}
+                    required
+                  />
                 </label>
                 {mode === 'CODING' ? (
                   <label>
@@ -346,6 +432,14 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function formatDuration(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map((unit) => String(unit).padStart(2, '0')).join(':');
 }
 
 function ChartSurface({

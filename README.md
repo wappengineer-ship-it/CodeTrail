@@ -43,4 +43,15 @@ The frontend runs on `http://localhost:5173` and proxies API calls to `http://lo
 
 ## Deployment
 
-`render.yaml` contains a Render blueprint for the API, static frontend, and managed PostgreSQL database. Add `OPENAI_API_KEY` to the API service if you want live AI weekly summaries.
+`render.yaml` contains a Render blueprint for the API, static frontend, and managed PostgreSQL database.
+
+1. Push the repo to GitHub.
+2. In Render, choose **New > Blueprint**.
+3. Connect the GitHub repo and let Render read `render.yaml`.
+4. Create the resources.
+5. If Render gives either service a different public URL, update:
+
+   - API service `CORS_ORIGIN`
+   - Web service `VITE_API_URL`
+
+The API pre-deploy command runs Prisma migrations and seeds the first demo dataset. Add `OPENAI_API_KEY` to the API service if you want live AI weekly summaries.
