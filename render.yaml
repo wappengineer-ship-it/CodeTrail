@@ -4,8 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install --include=dev && npm run db:generate -w @codetrail/api && npm run build -w @codetrail/api
-    preDeployCommand: npm run db:deploy -w @codetrail/api && npm run db:seed -w @codetrail/api
-    startCommand: npm run start -w @codetrail/api
+    startCommand: npm run db:deploy -w @codetrail/api && npm run db:seed -w @codetrail/api && npm run start -w @codetrail/api
     envVars:
       - key: NODE_ENV
         value: production
