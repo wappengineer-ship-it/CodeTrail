@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from './prisma.js';
 import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
-import { goalCreateSchema, projectCreateSchema, sessionCreateSchema } from './validators.js';
+import { goalCreateSchema, projectCreateSchema, sessionCreateSchema, sessionDeleteSchema } from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
 
@@ -180,6 +180,24 @@ router.post('/sessions', async (req, res, next) => {
       res.status(202).json({ ok: true, persisted: false, reason: 'Database is not ready in local development.' });
       return;
     }
+    next(error);
+  }
+});
+
+router.delete('/sessions/:type/:id', async (req, res, next) => {
+  try {
+    const user = await getDemoUser();
+    const input = sessionDeleteSchema.parse({ id: req.params.id, type: req.params.type });
+
+    if (input.type === 'CODING') {
+      await prisma.codingSession.delete({ where: { id: input.id, userId: user.id } });
+      res.status(204).send();
+      return;
+    }
+
+    await prisma.learningSession.delete({ where: { id: input.id, userId: user.id } });
+    res.status(204).send();
+  } catch (error) {
     next(error);
   }
 });

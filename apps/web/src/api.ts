@@ -14,6 +14,10 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(`Request failed: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -38,6 +42,10 @@ export async function createSession(payload: unknown) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteSession(type: 'CODING' | 'LEARNING', id: string) {
+  return request<void>(`/sessions/${type}/${id}`, { method: 'DELETE' });
 }
 
 export async function generateWeeklySummary() {

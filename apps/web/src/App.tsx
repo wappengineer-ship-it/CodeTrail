@@ -24,8 +24,9 @@ import {
   Sparkles,
   Square,
   TimerReset,
+  Trash2,
 } from 'lucide-react';
-import { createSession, generateWeeklySummary, loadBootstrap, loadDashboard } from './api';
+import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard } from './api';
 import type { BootstrapData, DashboardData } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
@@ -45,6 +46,8 @@ export function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [mode, setMode] = useState<SessionMode>('CODING');
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; type: SessionMode } | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isTimerStorageReady, setIsTimerStorageReady] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -118,6 +121,17 @@ export function App() {
     });
   }, [elapsedSeconds, isTimerRunning, isTimerStorageReady, manualMinutes, mode]);
 
+  useEffect(() => {
+    if (!pendingDelete) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setPendingDelete(null);
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingDelete]);
+
   const firstProject = bootstrap?.projects[0];
   const firstTechnology = bootstrap?.technologies[0];
 
@@ -188,12 +202,36 @@ export function App() {
     }
   }
 
+  async function confirmDeleteSession(activity: { id: string; title: string; type: SessionMode }) {
+    if (!bootstrap) return;
+
+    setDeletingSessionId(activity.id);
+    const previousBootstrap = bootstrap;
+    setPendingDelete(null);
+    setBootstrap({
+      ...bootstrap,
+      recentCoding: activity.type === 'CODING' ? bootstrap.recentCoding.filter((session) => session.id !== activity.id) : bootstrap.recentCoding,
+      recentLearning: activity.type === 'LEARNING' ? bootstrap.recentLearning.filter((session) => session.id !== activity.id) : bootstrap.recentLearning,
+    });
+
+    try {
+      await deleteSession(activity.type, activity.id);
+      await refresh();
+    } catch {
+      setBootstrap(previousBootstrap);
+      setSummary('Could not delete that session. Please try again.');
+    } finally {
+      setDeletingSessionId(null);
+    }
+  }
+
   const recentActivity = useMemo(() => {
     if (!bootstrap) return [];
     return [
       ...bootstrap.recentCoding.map((session) => ({
         id: session.id,
         kind: 'Coding',
+        type: 'CODING' as const,
         title: session.title,
         minutes: session.minutes,
         date: session.sessionDate,
@@ -201,6 +239,7 @@ export function App() {
       ...bootstrap.recentLearning.map((session) => ({
         id: session.id,
         kind: 'Learning',
+        type: 'LEARNING' as const,
         title: session.topic,
         minutes: session.minutes,
         date: session.sessionDate,
@@ -412,12 +451,50 @@ export function App() {
                   <span>{activity.kind}</span>
                   <strong>{activity.title}</strong>
                   <time>{Math.round(activity.minutes / 60 * 10) / 10}h</time>
+                  <button
+                    type="button"
+                    className="delete-activity"
+                    onClick={() => setPendingDelete(activity)}
+                    disabled={deletingSessionId === activity.id}
+                    aria-label={`Delete ${activity.title}`}
+                    title="Delete session"
+                  >
+                    {deletingSessionId === activity.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                  </button>
                 </div>
               ))}
             </div>
           </article>
         </section>
       </section>
+
+      {pendingDelete && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setPendingDelete(null)}>
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-description"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div>
+              <p className="eyebrow">Delete session</p>
+              <h2 id="delete-dialog-title">Remove this log?</h2>
+              <p id="delete-dialog-description">This will delete "{pendingDelete.title}" and update your totals.</p>
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="secondary-button" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </button>
+              <button type="button" className="danger-button" onClick={() => confirmDeleteSession(pendingDelete)}>
+                <Trash2 size={16} />
+                Delete
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

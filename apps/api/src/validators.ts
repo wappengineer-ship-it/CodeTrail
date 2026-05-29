@@ -34,3 +34,8 @@ export const goalCreateSchema = z.object({
   dueDate: z.string().datetime().optional(),
   projectId: z.string().optional(),
 });
+
+export const sessionDeleteSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(['CODING', 'LEARNING']),
+});
