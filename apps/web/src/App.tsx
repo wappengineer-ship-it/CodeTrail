@@ -35,7 +35,12 @@ type QuickLogDraft = {
   title: string;
 };
 
-const defaultQuickLogDraft: QuickLogDraft = {
+type StoredQuickLog = {
+  drafts: Record<SessionMode, QuickLogDraft>;
+  mode: SessionMode;
+};
+
+const defaultWorkDraft: QuickLogDraft = {
   detailsOpen: false,
   mode: 'CODING',
   notes: '',
@@ -45,12 +50,28 @@ const defaultQuickLogDraft: QuickLogDraft = {
   title: 'Work session',
 };
 
+const defaultLearningDraft: QuickLogDraft = {
+  detailsOpen: false,
+  mode: 'LEARNING',
+  notes: '',
+  projectId: '',
+  source: 'Docs and practice',
+  technologyIds: [],
+  title: 'Learning session',
+};
+
+const defaultQuickLogDrafts: Record<SessionMode, QuickLogDraft> = {
+  CODING: defaultWorkDraft,
+  LEARNING: defaultLearningDraft,
+};
+
 export function App() {
+  const [storedQuickLog] = useState(readStoredQuickLog);
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
-  const [quickLogDraft, setQuickLogDraft] = useState<QuickLogDraft>(() => readStoredQuickLog() ?? defaultQuickLogDraft);
-  const [mode, setMode] = useState<SessionMode>(() => readStoredQuickLog()?.mode ?? 'CODING');
+  const [quickLogDrafts, setQuickLogDrafts] = useState<Record<SessionMode, QuickLogDraft>>(() => storedQuickLog?.drafts ?? defaultQuickLogDrafts);
+  const [mode, setMode] = useState<SessionMode>(() => storedQuickLog?.mode ?? 'CODING');
   const [isSaving, setIsSaving] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<{
     id: string;
@@ -65,6 +86,7 @@ export function App() {
   } | null>(null);
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isTimerStorageReady, setIsTimerStorageReady] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -96,7 +118,6 @@ export function App() {
     elapsedBeforeStart.current = restoredTimer.elapsedBeforeStart;
     timerStartedAt.current = restoredTimer.startedAt;
     setMode(restoredTimer.mode);
-    setQuickLogDraft((draft) => ({ ...draft, mode: restoredTimer.mode }));
     setManualMinutes(restoredTimer.manualMinutes);
 
     if (restoredTimer.isRunning && restoredTimer.startedAt !== null) {
@@ -143,8 +164,8 @@ export function App() {
   }, [elapsedSeconds, isTimerRunning, isTimerStorageReady, manualMinutes, mode]);
 
   useEffect(() => {
-    writeStoredQuickLog(quickLogDraft);
-  }, [quickLogDraft]);
+    writeStoredQuickLog({ drafts: quickLogDrafts, mode });
+  }, [mode, quickLogDrafts]);
 
   useEffect(() => {
     if (!pendingDelete && !pendingEdit) return;
@@ -161,19 +182,17 @@ export function App() {
   }, [pendingDelete, pendingEdit]);
 
   const firstProject = bootstrap?.projects[0];
+  const quickLogDraft = quickLogDrafts[mode];
 
   function handleModeChange(nextMode: SessionMode) {
-    const previousMode = mode;
     setMode(nextMode);
-    setQuickLogDraft((draft) => ({
-      ...draft,
-      mode: nextMode,
-      title: draft.title === defaultTitleForMode(previousMode) ? defaultTitleForMode(nextMode) : draft.title,
-    }));
   }
 
   function updateQuickLogDraft(patch: Partial<QuickLogDraft>) {
-    setQuickLogDraft((draft) => ({ ...draft, ...patch }));
+    setQuickLogDrafts((drafts) => ({
+      ...drafts,
+      [mode]: { ...drafts[mode], ...patch, mode },
+    }));
   }
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -327,6 +346,7 @@ export function App() {
   }
 
   async function handleSummary() {
+    setIsGeneratingSummary(true);
     try {
       const result = await generateWeeklySummary();
       setSummary(result.content);
@@ -334,6 +354,8 @@ export function App() {
       setSummary(
         'This week has a strong foundation: keep logging sessions, protect one deep-work block, and ship the next visible slice of your flagship project.',
       );
+    } finally {
+      setIsGeneratingSummary(false);
     }
   }
 
@@ -450,10 +472,6 @@ export function App() {
             <p className="eyebrow">Welcome back</p>
             <h1>{bootstrap.user.name}</h1>
           </div>
-          <button className="summary-button" onClick={handleSummary}>
-            <Sparkles size={18} />
-            Weekly summary
-          </button>
         </header>
 
         <section className="daily-grid">
@@ -478,8 +496,9 @@ export function App() {
             <section id="dashboard" className="stats-grid">
               <Metric icon={<Code2 />} label={`${dashboard.stats.rangeLabel} work`} value={`${formatHours(dashboard.stats.rangeCodingHours)}h`} />
               <Metric icon={<BookOpen />} label={`${dashboard.stats.rangeLabel} learning`} value={`${formatHours(dashboard.stats.rangeLearningHours)}h`} />
-              <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
               <Metric icon={<CalendarCheck />} label={`${dashboard.stats.rangeLabel} total`} value={`${formatHours(dashboard.stats.rangeTotalHours)}h`} />
+              <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
+
             </section>
           </div>
 
@@ -501,13 +520,6 @@ export function App() {
             onMinutesChange={setManualMinutes}
           />
         </section>
-
-        {summary && (
-          <section className="ai-band">
-            <Sparkles size={20} />
-            <p>{summary}</p>
-          </section>
-        )}
 
         <section className="main-grid">
           <article className="panel activity-panel">
@@ -629,6 +641,19 @@ export function App() {
                 <h2>Insights</h2>
               </div>
             </div>
+            <section className="ai-summary-card" aria-label="Weekly AI summary">
+              <div>
+                <Sparkles size={18} />
+                <div>
+                  <strong>Weekly AI summary</strong>
+                  {summary ? <p>{summary}</p> : <p>Generate a short coaching note from your latest work, learning, and goals.</p>}
+                </div>
+              </div>
+              <button type="button" className="secondary-button" onClick={handleSummary} disabled={isGeneratingSummary}>
+                {isGeneratingSummary ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
+                {summary ? 'Refresh' : 'Generate'}
+              </button>
+            </section>
             <ul className="insight-list">
               {dashboard.insights.map((insight) => (
                 <li key={insight}>
@@ -719,10 +744,6 @@ function formatDuration(totalSeconds: number) {
 
 function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
-}
-
-function defaultTitleForMode(mode: SessionMode) {
-  return mode === 'CODING' ? 'Work session' : 'Learning session';
 }
 
 function addMinutesToHours(hours: number, minutes: number) {
@@ -884,25 +905,48 @@ function readStoredQuickLog() {
     const rawDraft = window.localStorage.getItem(QUICK_LOG_STORAGE_KEY);
     if (!rawDraft) return null;
 
-    const parsed = JSON.parse(rawDraft) as Partial<QuickLogDraft>;
-    if (parsed.mode !== 'CODING' && parsed.mode !== 'LEARNING') return null;
+    const parsed = JSON.parse(rawDraft) as Partial<StoredQuickLog & QuickLogDraft>;
+    const mode = parsed.mode === 'LEARNING' ? 'LEARNING' : 'CODING';
 
+    if (parsed.drafts) {
+      return {
+        drafts: {
+          CODING: normalizeQuickLogDraft(parsed.drafts.CODING, 'CODING'),
+          LEARNING: normalizeQuickLogDraft(parsed.drafts.LEARNING, 'LEARNING'),
+        },
+        mode,
+      } satisfies StoredQuickLog;
+    }
+
+    const migratedDraft = normalizeQuickLogDraft(parsed, mode);
     return {
-      detailsOpen: Boolean(parsed.detailsOpen),
-      mode: parsed.mode,
-      notes: String(parsed.notes ?? ''),
-      projectId: String(parsed.projectId ?? ''),
-      source: String(parsed.source ?? 'Docs and practice'),
-      technologyIds: Array.isArray(parsed.technologyIds) ? parsed.technologyIds.map(String) : [],
-      title: parsed.title === 'Coding session' ? 'Work session' : String(parsed.title ?? defaultTitleForMode(parsed.mode)),
-    } satisfies QuickLogDraft;
+      drafts: {
+        ...defaultQuickLogDrafts,
+        [mode]: migratedDraft,
+      },
+      mode,
+    } satisfies StoredQuickLog;
   } catch {
     removeStoredQuickLog();
     return null;
   }
 }
 
-function writeStoredQuickLog(draft: QuickLogDraft) {
+function normalizeQuickLogDraft(draft: Partial<QuickLogDraft> | undefined, mode: SessionMode) {
+  const defaults = defaultQuickLogDrafts[mode];
+
+  return {
+    detailsOpen: Boolean(draft?.detailsOpen ?? defaults.detailsOpen),
+    mode,
+    notes: String(draft?.notes ?? defaults.notes),
+    projectId: String(draft?.projectId ?? defaults.projectId),
+    source: String(draft?.source ?? defaults.source),
+    technologyIds: Array.isArray(draft?.technologyIds) ? draft.technologyIds.map(String) : defaults.technologyIds,
+    title: draft?.title === 'Coding session' ? 'Work session' : String(draft?.title ?? defaults.title),
+  } satisfies QuickLogDraft;
+}
+
+function writeStoredQuickLog(draft: StoredQuickLog) {
   try {
     window.localStorage.setItem(QUICK_LOG_STORAGE_KEY, JSON.stringify(draft));
   } catch {

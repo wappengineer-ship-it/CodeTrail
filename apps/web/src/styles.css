@@ -254,8 +254,7 @@ h2 {
 }
 
 .metric,
-.panel,
-.ai-band {
+.panel {
   border: 1px solid #dfe5ee;
   border-radius: 8px;
   background: #ffffff;
@@ -287,20 +286,6 @@ h2 {
 
 .metric strong {
   font-size: 1.5rem;
-}
-
-.ai-band {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 16px;
-  border-left: 5px solid #d49a2a;
-}
-
-.ai-band p {
-  margin: 0;
-  line-height: 1.55;
 }
 
 .main-grid {
@@ -638,6 +623,42 @@ fieldset {
 .insight-list {
   padding: 0;
   list-style: none;
+}
+
+.ai-summary-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #dfe5ee;
+  border-left: 5px solid #d49a2a;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.ai-summary-card > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ai-summary-card svg {
+  flex: 0 0 auto;
+  color: #d49a2a;
+}
+
+.ai-summary-card strong {
+  display: block;
+}
+
+.ai-summary-card p {
+  margin: 6px 0 0;
+  color: #5f6f85;
+  line-height: 1.5;
+}
+
+.ai-summary-card .secondary-button {
+  width: 100%;
 }
 
 .insight-list li {
