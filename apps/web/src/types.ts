@@ -58,6 +58,9 @@ export type BootstrapData = {
 
 export type DashboardData = {
   stats: {
+    codingHoursToday: number;
+    learningHoursToday: number;
+    totalHoursToday: number;
     codingHoursThisWeek: number;
     learningHoursThisWeek: number;
     totalHoursLast30Days: number;

@@ -75,6 +75,9 @@ export const mockBootstrap: BootstrapData = {
 
 export const mockDashboard: DashboardData = {
   stats: {
+    codingHoursToday: 1.4,
+    learningHoursToday: 0.6,
+    totalHoursToday: 2,
     codingHoursThisWeek: 7,
     learningHoursThisWeek: 2.7,
     totalHoursLast30Days: 28.5,

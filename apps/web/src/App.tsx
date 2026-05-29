@@ -202,11 +202,28 @@ export function App() {
           </button>
         </header>
 
+        <section className="today-summary" aria-label="Today summary">
+          <div>
+            <p className="eyebrow">Total today</p>
+            <strong>{dashboard.stats.totalHoursToday}h</strong>
+          </div>
+          <dl>
+            <div>
+              <dt>Coding</dt>
+              <dd>{dashboard.stats.codingHoursToday}h</dd>
+            </div>
+            <div>
+              <dt>Learning</dt>
+              <dd>{dashboard.stats.learningHoursToday}h</dd>
+            </div>
+          </dl>
+        </section>
+
         <section id="dashboard" className="stats-grid">
-          <Metric icon={<Code2 />} label="Coding this week" value={`${dashboard.stats.codingHoursThisWeek}h`} />
-          <Metric icon={<BookOpen />} label="Learning this week" value={`${dashboard.stats.learningHoursThisWeek}h`} />
+          <Metric icon={<Code2 />} label="Coding week" value={`${dashboard.stats.codingHoursThisWeek}h`} />
+          <Metric icon={<BookOpen />} label="Learning week" value={`${dashboard.stats.learningHoursThisWeek}h`} />
           <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
-          <Metric icon={<CalendarCheck />} label="30 day total" value={`${dashboard.stats.totalHoursLast30Days}h`} />
+          <Metric icon={<CalendarCheck />} label="Last 30 days" value={`${dashboard.stats.totalHoursLast30Days}h`} />
         </section>
 
         {summary && (
@@ -286,60 +303,70 @@ export function App() {
                 </div>
               </div>
               <label>
-                <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
-                <input name="title" defaultValue={mode === 'CODING' ? 'Feature implementation' : 'Study notes'} required />
+                <span>Minutes</span>
+                <input
+                  name="minutes"
+                  type="number"
+                  min="5"
+                  max="1440"
+                  value={manualMinutes}
+                  onChange={(event) => setManualMinutes(event.target.value)}
+                  required
+                />
               </label>
-              <div className="form-row">
-                <label>
-                  <span>Minutes</span>
-                  <input
-                    name="minutes"
-                    type="number"
-                    min="5"
-                    max="1440"
-                    value={manualMinutes}
-                    onChange={(event) => setManualMinutes(event.target.value)}
-                    required
-                  />
-                </label>
-                {mode === 'CODING' ? (
+
+              <details className="optional-details">
+                <summary>Details</summary>
+                <div className="details-fields">
                   <label>
-                    <span>Project</span>
-                    <select name="projectId" defaultValue={firstProject?.id}>
-                      {bootstrap.projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
+                    <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
+                    <input key={mode} name="title" defaultValue={mode === 'CODING' ? 'Coding session' : 'Learning session'} required />
+                  </label>
+
+                  <div className="form-row">
+                    {mode === 'CODING' ? (
+                      <label>
+                        <span>Project</span>
+                        <select name="projectId" defaultValue={firstProject?.id}>
+                          {bootstrap.projects.map((project) => (
+                            <option key={project.id} value={project.id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <label>
+                        <span>Source</span>
+                        <input name="source" defaultValue="Docs and practice" />
+                      </label>
+                    )}
+                  </div>
+
+                  <fieldset>
+                    <legend>Technologies</legend>
+                    <div className="tech-picker">
+                      {bootstrap.technologies.map((technology) => (
+                        <label key={technology.id} style={{ borderColor: technology.color }}>
+                          <input
+                            type="checkbox"
+                            name="technologyIds"
+                            value={technology.id}
+                            defaultChecked={technology.id === firstTechnology?.id}
+                          />
+                          {technology.name}
+                        </label>
                       ))}
-                    </select>
-                  </label>
-                ) : (
+                    </div>
+                  </fieldset>
+
                   <label>
-                    <span>Source</span>
-                    <input name="source" defaultValue="Docs and practice" />
+                    <span>Notes</span>
+                    <textarea name="notes" rows={3} placeholder="What moved forward? What felt sticky?" />
                   </label>
-                )}
-              </div>
-              <fieldset>
-                <legend>Technologies</legend>
-                <div className="tech-picker">
-                  {bootstrap.technologies.map((technology) => (
-                    <label key={technology.id} style={{ borderColor: technology.color }}>
-                      <input
-                        type="checkbox"
-                        name="technologyIds"
-                        value={technology.id}
-                        defaultChecked={technology.id === firstTechnology?.id}
-                      />
-                      {technology.name}
-                    </label>
-                  ))}
                 </div>
-              </fieldset>
-              <label>
-                <span>Notes</span>
-                <textarea name="notes" rows={3} placeholder="What moved forward? What felt sticky?" />
-              </label>
+              </details>
+
               <button className="primary-button" disabled={isSaving}>
                 {isSaving ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
                 Save session

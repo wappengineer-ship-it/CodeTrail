@@ -7,6 +7,12 @@ export function startOfWeek(date = new Date()) {
   return start;
 }
 
+export function startOfDay(date = new Date()) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  start.setUTCHours(0, 0, 0, 0);
+  return start;
+}
+
 export function daysAgo(days: number) {
   const date = new Date();
   date.setDate(date.getDate() - days);

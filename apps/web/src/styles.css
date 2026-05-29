@@ -162,6 +162,61 @@ h2 {
   margin-bottom: 16px;
 }
 
+.today-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 20px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #18202f;
+  color: white;
+  box-shadow: 0 16px 30px rgba(16, 23, 34, 0.12);
+}
+
+.today-summary strong {
+  display: block;
+  font-size: clamp(2.7rem, 7vw, 4.5rem);
+  line-height: 1;
+}
+
+.today-summary .eyebrow {
+  color: #9fb2ca;
+}
+
+.today-summary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.today-summary dl div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #263346;
+}
+
+.today-summary dt,
+.today-summary dd {
+  margin: 0;
+}
+
+.today-summary dt {
+  color: #b8c7da;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.today-summary dd {
+  margin-top: 5px;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
 .metric,
 .panel,
 .ai-band {
@@ -225,6 +280,7 @@ h2 {
 
 .activity-panel {
   min-height: 370px;
+  order: 1;
 }
 
 .chart-frame {
@@ -242,6 +298,7 @@ h2 {
 
 .log-panel {
   grid-row: span 2;
+  order: 2;
 }
 
 .segmented {
@@ -334,6 +391,30 @@ h2 {
 .icon-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.optional-details {
+  border: 1px solid #d8e1ee;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.optional-details summary {
+  min-height: 42px;
+  padding: 11px 12px;
+  color: #46566b;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.optional-details[open] summary {
+  border-bottom: 1px solid #e7ecf3;
+}
+
+.details-fields {
+  display: grid;
+  gap: 14px;
+  padding: 12px;
 }
 
 label,
@@ -525,6 +606,10 @@ fieldset {
   .main-grid {
     grid-template-columns: 1fr;
   }
+
+  .log-panel {
+    order: -1;
+  }
 }
 
 @media (max-width: 680px) {
@@ -545,7 +630,24 @@ fieldset {
   }
 
   .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .today-summary {
     grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .today-summary dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric {
+    padding: 13px;
+  }
+
+  .metric strong {
+    font-size: 1.2rem;
   }
 
   .summary-button {

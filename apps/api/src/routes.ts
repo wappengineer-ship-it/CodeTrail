@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from './prisma.js';
-import { daysAgo, startOfWeek, toHours } from './dates.js';
+import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
 import { goalCreateSchema, projectCreateSchema, sessionCreateSchema } from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
@@ -53,10 +53,13 @@ router.get('/bootstrap', async (_req, res, next) => {
 router.get('/dashboard', async (_req, res, next) => {
   try {
     const user = await getDemoUser();
+    const todayStart = startOfDay();
     const weekStart = startOfWeek();
     const monthStart = daysAgo(30);
 
-    const [codingThisWeek, learningThisWeek, codingMonth, learningMonth, activeGoals, sessions] = await Promise.all([
+    const [codingToday, learningToday, codingThisWeek, learningThisWeek, codingMonth, learningMonth, activeGoals, sessions] = await Promise.all([
+      prisma.codingSession.aggregate({ where: { userId: user.id, sessionDate: { gte: todayStart } }, _sum: { minutes: true } }),
+      prisma.learningSession.aggregate({ where: { userId: user.id, sessionDate: { gte: todayStart } }, _sum: { minutes: true } }),
       prisma.codingSession.aggregate({ where: { userId: user.id, sessionDate: { gte: weekStart } }, _sum: { minutes: true } }),
       prisma.learningSession.aggregate({ where: { userId: user.id, sessionDate: { gte: weekStart } }, _sum: { minutes: true } }),
       prisma.codingSession.aggregate({ where: { userId: user.id, sessionDate: { gte: monthStart } }, _sum: { minutes: true } }),
@@ -100,9 +103,13 @@ router.get('/dashboard', async (_req, res, next) => {
 
     const weekMinutes = (codingThisWeek._sum.minutes ?? 0) + (learningThisWeek._sum.minutes ?? 0);
     const monthMinutes = (codingMonth._sum.minutes ?? 0) + (learningMonth._sum.minutes ?? 0);
+    const todayMinutes = (codingToday._sum.minutes ?? 0) + (learningToday._sum.minutes ?? 0);
 
     res.json({
       stats: {
+        codingHoursToday: toHours(codingToday._sum.minutes ?? 0),
+        learningHoursToday: toHours(learningToday._sum.minutes ?? 0),
+        totalHoursToday: toHours(todayMinutes),
         codingHoursThisWeek: toHours(codingThisWeek._sum.minutes ?? 0),
         learningHoursThisWeek: toHours(learningThisWeek._sum.minutes ?? 0),
         totalHoursLast30Days: toHours(monthMinutes),
