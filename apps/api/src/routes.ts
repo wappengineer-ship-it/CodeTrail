@@ -171,6 +171,7 @@ router.get('/dashboard', async (req, res, next) => {
       }),
       prisma.learningSession.findMany({
         where: { userId: user.id, sessionDate: rangeDateFilter },
+        include: { technologies: { include: { technology: true } } },
         orderBy: { sessionDate: 'asc' },
       }),
       prisma.goal.findMany({
@@ -184,6 +185,7 @@ router.get('/dashboard', async (req, res, next) => {
       }),
       prisma.learningSession.findMany({
         where: { userId: user.id, sessionDate: { gte: daysAgo(45) } },
+        include: { technologies: { include: { technology: true } } },
         orderBy: { sessionDate: 'asc' },
       }),
     ]);
@@ -195,11 +197,7 @@ router.get('/dashboard', async (req, res, next) => {
     buildDayKeys(historyStart).forEach((date) => days.set(date, { coding: 0, learning: 0 }));
 
     const techMinutes = new Map<string, { name: string; color: string; minutes: number }>();
-    rangeCoding.forEach((session) => {
-      const key = session.sessionDate.toISOString().slice(0, 10);
-      const current = days.get(key) ?? { coding: 0, learning: 0 };
-      current.coding += session.minutes;
-      days.set(key, current);
+    function addTechnologyMinutes(session: { minutes: number; technologies: { technology: { id: string; name: string; color: string } }[] }) {
       session.technologies.forEach(({ technology }) => {
         const current = techMinutes.get(technology.id) ?? {
           name: technology.name,
@@ -209,12 +207,21 @@ router.get('/dashboard', async (req, res, next) => {
         current.minutes += session.minutes;
         techMinutes.set(technology.id, current);
       });
+    }
+
+    rangeCoding.forEach((session) => {
+      const key = session.sessionDate.toISOString().slice(0, 10);
+      const current = days.get(key) ?? { coding: 0, learning: 0 };
+      current.coding += session.minutes;
+      days.set(key, current);
+      addTechnologyMinutes(session);
     });
     rangeLearning.forEach((session) => {
       const key = session.sessionDate.toISOString().slice(0, 10);
       const current = days.get(key) ?? { coding: 0, learning: 0 };
       current.learning += session.minutes;
       days.set(key, current);
+      addTechnologyMinutes(session);
     });
 
     let streak = 0;

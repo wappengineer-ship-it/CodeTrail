@@ -196,7 +196,17 @@ h2 {
 
 .daily-overview {
   display: grid;
+  grid-column: 1;
   gap: 14px;
+}
+
+.daily-grid > .today-summary {
+  grid-column: 1;
+}
+
+.log-panel {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .today-summary {
@@ -368,6 +378,22 @@ h2 {
 .chart-frame.compact {
   min-height: 230px;
   height: 230px;
+}
+
+.empty-chart {
+  display: grid;
+  min-height: 230px;
+  margin-top: 18px;
+  place-content: center;
+  gap: 6px;
+  border: 1px dashed #ccd5e3;
+  border-radius: 8px;
+  color: #5f6f85;
+  text-align: center;
+}
+
+.empty-chart strong {
+  color: #18202f;
 }
 
 .log-panel {
@@ -814,6 +840,22 @@ fieldset {
 
   .daily-grid {
     grid-template-columns: 1fr;
+  }
+
+  .daily-grid > .today-summary {
+    grid-column: auto;
+    order: 0;
+  }
+
+  .daily-overview {
+    grid-column: auto;
+    order: 2;
+  }
+
+  .log-panel {
+    grid-column: auto;
+    grid-row: auto;
+    order: 1;
   }
 
   .main-grid {

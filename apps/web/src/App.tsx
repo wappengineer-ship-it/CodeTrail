@@ -281,10 +281,7 @@ export function App() {
       const learningMinutes = type === 'LEARNING' ? session.minutes : 0;
       const totalMinutes = codingMinutes + learningMinutes;
       const history = isInSelectedRange ? upsertHistoryDay(current.history, sessionDate, codingMinutes, learningMinutes) : current.history;
-      const technologies =
-        type === 'CODING'
-          ? updateTechnologyFocus(current.technologies, (session as CodingSession).technologies, session.minutes)
-          : current.technologies;
+      const technologies = updateTechnologyFocus(current.technologies, session.technologies, session.minutes);
 
       return {
         ...current,
@@ -479,24 +476,24 @@ export function App() {
         </header>
 
         <section className="daily-grid">
-          <div className="daily-overview">
-            <section className="today-summary" aria-label="Today summary">
+          <section className="today-summary" aria-label="Today summary">
+            <div>
+              <p className="eyebrow">Total today</p>
+              <strong>{formatHours(todayTotalHours)}h</strong>
+            </div>
+            <dl>
               <div>
-                <p className="eyebrow">Total today</p>
-                <strong>{formatHours(todayTotalHours)}h</strong>
+                <dt>Work</dt>
+                <dd>{formatHours(todayCodingHours)}h</dd>
               </div>
-              <dl>
-                <div>
-                  <dt>Work</dt>
-                  <dd>{formatHours(todayCodingHours)}h</dd>
-                </div>
-                <div>
-                  <dt>Learning</dt>
-                  <dd>{formatHours(todayLearningHours)}h</dd>
-                </div>
-              </dl>
-            </section>
+              <div>
+                <dt>Learning</dt>
+                <dd>{formatHours(todayLearningHours)}h</dd>
+              </div>
+            </dl>
+          </section>
 
+          <div className="daily-overview">
             <section id="dashboard" className="stats-grid">
               <Metric
                 icon={<Goal />}
@@ -631,17 +628,24 @@ export function App() {
                 <h2>Technology focus</h2>
               </div>
             </div>
-            <ChartSurface height={230} className="compact">
-              {({ width, height }) => (
-                <BarChart width={width} height={height} data={dashboard.technologies} layout="vertical" margin={{ left: 12, right: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={82} tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Bar dataKey="hours" fill="#3a8f5a" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              )}
-            </ChartSurface>
+            {dashboard.technologies.length > 0 ? (
+              <ChartSurface height={230} className="compact">
+                {({ width, height }) => (
+                  <BarChart width={width} height={height} data={dashboard.technologies} layout="vertical" margin={{ left: 12, right: 12 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={82} tickLine={false} axisLine={false} />
+                    <Tooltip />
+                    <Bar dataKey="hours" fill="#3a8f5a" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                )}
+              </ChartSurface>
+            ) : (
+              <div className="empty-chart">
+                <strong>No technology focus yet</strong>
+                <span>Tag a Work or Learning session to build this chart.</span>
+              </div>
+            )}
           </article>
 
           <article id="insights" className="panel insight-panel">
@@ -819,7 +823,7 @@ function upsertHistoryDay(history: DashboardData['history'], date: string, codin
 
 function updateTechnologyFocus(
   currentTechnologies: DashboardData['technologies'],
-  sessionTechnologies: CodingSession['technologies'],
+  sessionTechnologies: CodingSession['technologies'] | LearningSession['technologies'],
   minutes: number,
 ) {
   const technologies = new Map(currentTechnologies.map((technology) => [technology.name, { ...technology }]));
