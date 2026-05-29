@@ -189,6 +189,8 @@ export function App() {
   function applyCreatedSession(type: SessionMode, session: CodingSession | LearningSession | { ok: boolean; persisted: false; reason: string }) {
     if (!('id' in session)) return;
 
+    applyCreatedSessionToDashboard(type, session);
+
     setBootstrap((current) => {
       if (!current) return current;
 
@@ -202,6 +204,52 @@ export function App() {
       return {
         ...current,
         recentLearning: [session as LearningSession, ...current.recentLearning.filter((item) => item.id !== session.id)].slice(0, 8),
+      };
+    });
+  }
+
+  function applyCreatedSessionToDashboard(type: SessionMode, session: CodingSession | LearningSession) {
+    const sessionDate = session.sessionDate.slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const isToday = sessionDate === today;
+    const isInSelectedRange = isDateInRange(sessionDate, dashboardRange);
+
+    setDashboard((current) => {
+      if (!current) return current;
+
+      const codingMinutes = type === 'CODING' ? session.minutes : 0;
+      const learningMinutes = type === 'LEARNING' ? session.minutes : 0;
+      const totalMinutes = codingMinutes + learningMinutes;
+      const history = isInSelectedRange ? upsertHistoryDay(current.history, sessionDate, codingMinutes, learningMinutes) : current.history;
+      const technologies =
+        type === 'CODING'
+          ? updateTechnologyFocus(current.technologies, (session as CodingSession).technologies, session.minutes)
+          : current.technologies;
+
+      return {
+        ...current,
+        stats: {
+          ...current.stats,
+          codingHoursToday: isToday ? addMinutesToHours(current.stats.codingHoursToday, codingMinutes) : current.stats.codingHoursToday,
+          learningHoursToday: isToday ? addMinutesToHours(current.stats.learningHoursToday, learningMinutes) : current.stats.learningHoursToday,
+          totalHoursToday: isToday ? addMinutesToHours(current.stats.totalHoursToday, totalMinutes) : current.stats.totalHoursToday,
+          rangeCodingHours: isInSelectedRange ? addMinutesToHours(current.stats.rangeCodingHours, codingMinutes) : current.stats.rangeCodingHours,
+          rangeLearningHours: isInSelectedRange ? addMinutesToHours(current.stats.rangeLearningHours, learningMinutes) : current.stats.rangeLearningHours,
+          rangeTotalHours: isInSelectedRange ? addMinutesToHours(current.stats.rangeTotalHours, totalMinutes) : current.stats.rangeTotalHours,
+          codingHoursThisWeek: isDateInRange(sessionDate, 'week')
+            ? addMinutesToHours(current.stats.codingHoursThisWeek, codingMinutes)
+            : current.stats.codingHoursThisWeek,
+          learningHoursThisWeek: isDateInRange(sessionDate, 'week')
+            ? addMinutesToHours(current.stats.learningHoursThisWeek, learningMinutes)
+            : current.stats.learningHoursThisWeek,
+          totalHoursLast30Days: isWithinLastDays(sessionDate, 30)
+            ? addMinutesToHours(current.stats.totalHoursLast30Days, totalMinutes)
+            : current.stats.totalHoursLast30Days,
+          streakDays: isToday && current.stats.streakDays === 0 ? 1 : current.stats.streakDays,
+        },
+        chart: isInSelectedRange ? history.slice().reverse().map((day) => ({ date: day.date, hours: day.totalHours })) : current.chart,
+        history,
+        technologies,
       };
     });
   }
@@ -631,6 +679,75 @@ function formatDuration(totalSeconds: number) {
 
 function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+function addMinutesToHours(hours: number, minutes: number) {
+  return Math.round(((Math.round(hours * 60) + minutes) / 60) * 10) / 10;
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function startOfUtcWeek(date = new Date()) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = start.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  start.setUTCDate(start.getUTCDate() + diff);
+  return start;
+}
+
+function isDateInRange(date: string, range: DashboardRange) {
+  if (range === 'all') return true;
+  if (range === 'today') return date === dateKey(new Date());
+  if (range === 'week') return date >= dateKey(startOfUtcWeek());
+
+  const now = new Date();
+  return date >= dateKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)));
+}
+
+function isWithinLastDays(date: string, days: number) {
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  return date >= dateKey(start);
+}
+
+function upsertHistoryDay(history: DashboardData['history'], date: string, codingMinutes: number, learningMinutes: number) {
+  const existingDay = history.find((day) => day.date === date);
+  const updatedDay = {
+    date,
+    codingHours: addMinutesToHours(existingDay?.codingHours ?? 0, codingMinutes),
+    learningHours: addMinutesToHours(existingDay?.learningHours ?? 0, learningMinutes),
+    totalHours: addMinutesToHours(existingDay?.totalHours ?? 0, codingMinutes + learningMinutes),
+  };
+
+  return [updatedDay, ...history.filter((day) => day.date !== date)].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+}
+
+function updateTechnologyFocus(
+  currentTechnologies: DashboardData['technologies'],
+  sessionTechnologies: CodingSession['technologies'],
+  minutes: number,
+) {
+  const technologies = new Map(currentTechnologies.map((technology) => [technology.name, { ...technology }]));
+
+  sessionTechnologies.forEach(({ technology }) => {
+    const current = technologies.get(technology.name) ?? {
+      name: technology.name,
+      color: technology.color,
+      hours: 0,
+      minutes: 0,
+    };
+    const nextMinutes = current.minutes + minutes;
+    technologies.set(technology.name, {
+      ...current,
+      color: technology.color,
+      minutes: nextMinutes,
+      hours: Math.round((nextMinutes / 60) * 10) / 10,
+    });
+  });
+
+  return [...technologies.values()].sort((a, b) => b.minutes - a.minutes).slice(0, 6);
 }
 
 function formatHistoryDate(date: string) {
