@@ -29,6 +29,16 @@ import { createSession, generateWeeklySummary, loadBootstrap, loadDashboard } fr
 import type { BootstrapData, DashboardData } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
+const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
+
+type StoredTimer = {
+  elapsedBeforeStart: number;
+  elapsedSeconds: number;
+  isRunning: boolean;
+  manualMinutes: string;
+  mode: SessionMode;
+  startedAt: number | null;
+};
 
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
@@ -36,6 +46,7 @@ export function App() {
   const [mode, setMode] = useState<SessionMode>('CODING');
   const [isSaving, setIsSaving] = useState(false);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isTimerStorageReady, setIsTimerStorageReady] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [manualMinutes, setManualMinutes] = useState('60');
   const [summary, setSummary] = useState('');
@@ -53,6 +64,32 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const restoredTimer = readStoredTimer();
+    if (!restoredTimer) {
+      setIsTimerStorageReady(true);
+      return;
+    }
+
+    elapsedBeforeStart.current = restoredTimer.elapsedBeforeStart;
+    timerStartedAt.current = restoredTimer.startedAt;
+    setMode(restoredTimer.mode);
+    setManualMinutes(restoredTimer.manualMinutes);
+
+    if (restoredTimer.isRunning && restoredTimer.startedAt !== null) {
+      const secondsSinceStart = Math.floor((Date.now() - restoredTimer.startedAt) / 1000);
+      const restoredElapsed = restoredTimer.elapsedBeforeStart + Math.max(0, secondsSinceStart);
+      setElapsedSeconds(restoredElapsed);
+      setManualMinutes(String(Math.max(5, Math.ceil(restoredElapsed / 60))));
+      setIsTimerRunning(true);
+    } else {
+      setElapsedSeconds(restoredTimer.elapsedSeconds);
+      setIsTimerRunning(false);
+    }
+
+    setIsTimerStorageReady(true);
+  }, []);
+
+  useEffect(() => {
     if (!isTimerRunning || timerStartedAt.current === null) return;
 
     const intervalId = window.setInterval(() => {
@@ -62,6 +99,24 @@ export function App() {
 
     return () => window.clearInterval(intervalId);
   }, [isTimerRunning]);
+
+  useEffect(() => {
+    if (!isTimerStorageReady) return;
+
+    if (!isTimerRunning && elapsedSeconds === 0 && manualMinutes === '60') {
+      removeStoredTimer();
+      return;
+    }
+
+    writeStoredTimer({
+      elapsedBeforeStart: elapsedBeforeStart.current,
+      elapsedSeconds,
+      isRunning: isTimerRunning,
+      manualMinutes,
+      mode,
+      startedAt: timerStartedAt.current,
+    });
+  }, [elapsedSeconds, isTimerRunning, isTimerStorageReady, manualMinutes, mode]);
 
   const firstProject = bootstrap?.projects[0];
   const firstTechnology = bootstrap?.technologies[0];
@@ -121,6 +176,7 @@ export function App() {
     elapsedBeforeStart.current = 0;
     setElapsedSeconds(0);
     setIsTimerRunning(false);
+    removeStoredTimer();
   }
 
   async function handleSummary() {
@@ -206,28 +262,49 @@ export function App() {
           </button>
         </header>
 
-        <section className="today-summary" aria-label="Today summary">
-          <div>
-            <p className="eyebrow">Total today</p>
-            <strong>{formatHours(todayTotalHours)}h</strong>
-          </div>
-          <dl>
-            <div>
-              <dt>Coding</dt>
-              <dd>{formatHours(todayCodingHours)}h</dd>
-            </div>
-            <div>
-              <dt>Learning</dt>
-              <dd>{formatHours(todayLearningHours)}h</dd>
-            </div>
-          </dl>
-        </section>
+        <section className="daily-grid">
+          <div className="daily-overview">
+            <section className="today-summary" aria-label="Today summary">
+              <div>
+                <p className="eyebrow">Total today</p>
+                <strong>{formatHours(todayTotalHours)}h</strong>
+              </div>
+              <dl>
+                <div>
+                  <dt>Coding</dt>
+                  <dd>{formatHours(todayCodingHours)}h</dd>
+                </div>
+                <div>
+                  <dt>Learning</dt>
+                  <dd>{formatHours(todayLearningHours)}h</dd>
+                </div>
+              </dl>
+            </section>
 
-        <section id="dashboard" className="stats-grid">
-          <Metric icon={<Code2 />} label="Coding week" value={`${dashboard.stats.codingHoursThisWeek}h`} />
-          <Metric icon={<BookOpen />} label="Learning week" value={`${dashboard.stats.learningHoursThisWeek}h`} />
-          <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
-          <Metric icon={<CalendarCheck />} label="Last 30 days" value={`${dashboard.stats.totalHoursLast30Days}h`} />
+            <section id="dashboard" className="stats-grid">
+              <Metric icon={<Code2 />} label="Coding week" value={`${dashboard.stats.codingHoursThisWeek}h`} />
+              <Metric icon={<BookOpen />} label="Learning week" value={`${dashboard.stats.learningHoursThisWeek}h`} />
+              <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
+              <Metric icon={<CalendarCheck />} label="Last 30 days" value={`${dashboard.stats.totalHoursLast30Days}h`} />
+            </section>
+          </div>
+
+          <QuickLogPanel
+            bootstrap={bootstrap}
+            elapsedSeconds={elapsedSeconds}
+            firstProject={firstProject}
+            firstTechnology={firstTechnology}
+            isSaving={isSaving}
+            isTimerRunning={isTimerRunning}
+            manualMinutes={manualMinutes}
+            mode={mode}
+            onModeChange={setMode}
+            onResetTimer={resetTimer}
+            onStartTimer={startTimer}
+            onStopTimer={stopTimer}
+            onSubmit={handleSubmit}
+            onMinutesChange={setManualMinutes}
+          />
         </section>
 
         {summary && (
@@ -256,126 +333,6 @@ export function App() {
                 </AreaChart>
               )}
             </ChartSurface>
-          </article>
-
-          <article id="sessions" className="panel log-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Quick log</p>
-                <h2>Add a session</h2>
-              </div>
-              <div className="segmented" aria-label="Session type">
-                <button className={mode === 'CODING' ? 'selected' : ''} onClick={() => setMode('CODING')}>
-                  <Code2 size={16} /> Code
-                </button>
-                <button className={mode === 'LEARNING' ? 'selected' : ''} onClick={() => setMode('LEARNING')}>
-                  <BookOpen size={16} /> Learn
-                </button>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="session-form">
-              <div className="timer-card">
-                <div>
-                  <span>Timer</span>
-                  <strong>{formatDuration(elapsedSeconds)}</strong>
-                </div>
-                <div className="timer-actions">
-                  <button type="button" className="icon-button start" onClick={startTimer} disabled={isTimerRunning} aria-label="Start timer" title="Start timer">
-                    <Play size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button stop"
-                    onClick={stopTimer}
-                    disabled={!isTimerRunning && elapsedSeconds === 0}
-                    aria-label="Stop timer"
-                    title="Stop timer"
-                  >
-                    <Square size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    onClick={resetTimer}
-                    disabled={elapsedSeconds === 0 && !isTimerRunning}
-                    aria-label="Reset timer"
-                    title="Reset timer"
-                  >
-                    <RotateCcw size={16} />
-                  </button>
-                </div>
-              </div>
-              <label>
-                <span>Minutes</span>
-                <input
-                  name="minutes"
-                  type="number"
-                  min="5"
-                  max="1440"
-                  value={manualMinutes}
-                  onChange={(event) => setManualMinutes(event.target.value)}
-                  required
-                />
-              </label>
-
-              <details className="optional-details">
-                <summary>Details</summary>
-                <div className="details-fields">
-                  <label>
-                    <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
-                    <input key={mode} name="title" defaultValue={mode === 'CODING' ? 'Coding session' : 'Learning session'} required />
-                  </label>
-
-                  <div className="form-row">
-                    {mode === 'CODING' ? (
-                      <label>
-                        <span>Project</span>
-                        <select name="projectId" defaultValue={firstProject?.id}>
-                          {bootstrap.projects.map((project) => (
-                            <option key={project.id} value={project.id}>
-                              {project.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : (
-                      <label>
-                        <span>Source</span>
-                        <input name="source" defaultValue="Docs and practice" />
-                      </label>
-                    )}
-                  </div>
-
-                  <fieldset>
-                    <legend>Technologies</legend>
-                    <div className="tech-picker">
-                      {bootstrap.technologies.map((technology) => (
-                        <label key={technology.id} style={{ borderColor: technology.color }}>
-                          <input
-                            type="checkbox"
-                            name="technologyIds"
-                            value={technology.id}
-                            defaultChecked={technology.id === firstTechnology?.id}
-                          />
-                          {technology.name}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <label>
-                    <span>Notes</span>
-                    <textarea name="notes" rows={3} placeholder="What moved forward? What felt sticky?" />
-                  </label>
-                </div>
-              </details>
-
-              <button className="primary-button" disabled={isSaving}>
-                {isSaving ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
-                Save session
-              </button>
-            </form>
           </article>
 
           <article id="goals" className="panel goals-panel">
@@ -475,6 +432,193 @@ function formatDuration(totalSeconds: number) {
 
 function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+function readStoredTimer() {
+  try {
+    const rawTimer = window.localStorage.getItem(TIMER_STORAGE_KEY);
+    if (!rawTimer) return null;
+
+    const parsed = JSON.parse(rawTimer) as Partial<StoredTimer>;
+    if (parsed.mode !== 'CODING' && parsed.mode !== 'LEARNING') return null;
+
+    return {
+      elapsedBeforeStart: Number(parsed.elapsedBeforeStart ?? 0),
+      elapsedSeconds: Number(parsed.elapsedSeconds ?? 0),
+      isRunning: Boolean(parsed.isRunning),
+      manualMinutes: String(parsed.manualMinutes ?? '60'),
+      mode: parsed.mode,
+      startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+    } satisfies StoredTimer;
+  } catch {
+    removeStoredTimer();
+    return null;
+  }
+}
+
+function writeStoredTimer(timer: StoredTimer) {
+  try {
+    window.localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
+  } catch {
+    // Timer persistence is a convenience; tracking should still work without storage.
+  }
+}
+
+function removeStoredTimer() {
+  try {
+    window.localStorage.removeItem(TIMER_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures so reset/save never breaks the logging flow.
+  }
+}
+
+function QuickLogPanel({
+  bootstrap,
+  elapsedSeconds,
+  firstProject,
+  firstTechnology,
+  isSaving,
+  isTimerRunning,
+  manualMinutes,
+  mode,
+  onModeChange,
+  onMinutesChange,
+  onResetTimer,
+  onStartTimer,
+  onStopTimer,
+  onSubmit,
+}: {
+  bootstrap: BootstrapData;
+  elapsedSeconds: number;
+  firstProject?: BootstrapData['projects'][number];
+  firstTechnology?: BootstrapData['technologies'][number];
+  isSaving: boolean;
+  isTimerRunning: boolean;
+  manualMinutes: string;
+  mode: SessionMode;
+  onModeChange: (mode: SessionMode) => void;
+  onMinutesChange: (minutes: string) => void;
+  onResetTimer: () => void;
+  onStartTimer: () => void;
+  onStopTimer: () => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <article id="sessions" className="panel log-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Quick log</p>
+          <h2>Add a session</h2>
+        </div>
+        <div className="segmented" aria-label="Session type">
+          <button className={mode === 'CODING' ? 'selected' : ''} onClick={() => onModeChange('CODING')}>
+            <Code2 size={16} /> Code
+          </button>
+          <button className={mode === 'LEARNING' ? 'selected' : ''} onClick={() => onModeChange('LEARNING')}>
+            <BookOpen size={16} /> Learn
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="session-form">
+        <div className="timer-card">
+          <div>
+            <span>Timer</span>
+            <strong>{formatDuration(elapsedSeconds)}</strong>
+          </div>
+          <div className="timer-actions">
+            <button type="button" className="icon-button start" onClick={onStartTimer} disabled={isTimerRunning} aria-label="Start timer" title="Start timer">
+              <Play size={16} />
+            </button>
+            <button
+              type="button"
+              className="icon-button stop"
+              onClick={onStopTimer}
+              disabled={!isTimerRunning && elapsedSeconds === 0}
+              aria-label="Stop timer"
+              title="Stop timer"
+            >
+              <Square size={15} />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={onResetTimer}
+              disabled={elapsedSeconds === 0 && !isTimerRunning}
+              aria-label="Reset timer"
+              title="Reset timer"
+            >
+              <RotateCcw size={16} />
+            </button>
+          </div>
+        </div>
+        <label>
+          <span>Minutes</span>
+          <input
+            name="minutes"
+            type="number"
+            min="5"
+            max="1440"
+            value={manualMinutes}
+            onChange={(event) => onMinutesChange(event.target.value)}
+            required
+          />
+        </label>
+
+        <details className="optional-details">
+          <summary>Details</summary>
+          <div className="details-fields">
+            <label>
+              <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
+              <input key={mode} name="title" defaultValue={mode === 'CODING' ? 'Coding session' : 'Learning session'} required />
+            </label>
+
+            <div className="form-row">
+              {mode === 'CODING' ? (
+                <label>
+                  <span>Project</span>
+                  <select name="projectId" defaultValue={firstProject?.id}>
+                    {bootstrap.projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  <span>Source</span>
+                  <input name="source" defaultValue="Docs and practice" />
+                </label>
+              )}
+            </div>
+
+            <fieldset>
+              <legend>Technologies</legend>
+              <div className="tech-picker">
+                {bootstrap.technologies.map((technology) => (
+                  <label key={technology.id} style={{ borderColor: technology.color }}>
+                    <input type="checkbox" name="technologyIds" value={technology.id} defaultChecked={technology.id === firstTechnology?.id} />
+                    {technology.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <label>
+              <span>Notes</span>
+              <textarea name="notes" rows={3} placeholder="What moved forward? What felt sticky?" />
+            </label>
+          </div>
+        </details>
+
+        <button className="primary-button" disabled={isSaving}>
+          {isSaving ? <Loader2 className="spin" size={18} /> : <Plus size={18} />}
+          Save session
+        </button>
+      </form>
+    </article>
+  );
 }
 
 function ChartSurface({

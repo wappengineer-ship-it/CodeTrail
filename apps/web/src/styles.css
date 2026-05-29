@@ -159,7 +159,19 @@ h2 {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.daily-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.52fr);
+  align-items: start;
+  gap: 16px;
   margin-bottom: 16px;
+}
+
+.daily-overview {
+  display: grid;
+  gap: 14px;
 }
 
 .today-summary {
@@ -167,7 +179,6 @@ h2 {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
-  margin-bottom: 14px;
   padding: 20px;
   border: 1px solid #dfe5ee;
   border-radius: 8px;
@@ -297,8 +308,7 @@ h2 {
 }
 
 .log-panel {
-  grid-row: span 2;
-  order: 2;
+  align-self: stretch;
 }
 
 .segmented {
@@ -603,12 +613,12 @@ fieldset {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-grid {
+  .daily-grid {
     grid-template-columns: 1fr;
   }
 
-  .log-panel {
-    order: -1;
+  .main-grid {
+    grid-template-columns: 1fr;
   }
 }
 
