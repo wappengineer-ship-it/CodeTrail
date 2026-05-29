@@ -61,6 +61,10 @@ export type DashboardData = {
     codingHoursToday: number;
     learningHoursToday: number;
     totalHoursToday: number;
+    rangeCodingHours: number;
+    rangeLearningHours: number;
+    rangeTotalHours: number;
+    rangeLabel: string;
     codingHoursThisWeek: number;
     learningHoursThisWeek: number;
     totalHoursLast30Days: number;
@@ -68,6 +72,17 @@ export type DashboardData = {
     activeGoalCount: number;
   };
   chart: { date: string; hours: number }[];
-  technologies: { name: string; color: string; minutes: number; hours: number }[];
+  history: {
+    date: string;
+    codingHours: number;
+    learningHours: number;
+    totalHours: number;
+  }[];
+  technologies: {
+    name: string;
+    color: string;
+    minutes: number;
+    hours: number;
+  }[];
   insights: string[];
 };

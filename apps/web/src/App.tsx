@@ -1,37 +1,19 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
-  BookOpen,
-  Brain,
-  CalendarCheck,
-  Code2,
-  Flame,
-  Goal,
-  Loader2,
-  Pencil,
-  Play,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  Square,
-  TimerReset,
-  Trash2,
-} from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { BookOpen, Brain, CalendarCheck, Code2, Flame, Goal, Loader2, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
 import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard, updateSession } from './api';
-import type { BootstrapData, DashboardData } from './types';
+import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
+type DashboardRange = 'today' | 'week' | 'month' | 'all';
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
+const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
+  { label: 'Today', value: 'today' },
+  { label: 'Week', value: 'week' },
+  { label: 'Month', value: 'month' },
+  { label: 'All', value: 'all' },
+];
 
 type StoredTimer = {
   elapsedBeforeStart: number;
@@ -45,10 +27,20 @@ type StoredTimer = {
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
   const [mode, setMode] = useState<SessionMode>('CODING');
   const [isSaving, setIsSaving] = useState(false);
-  const [pendingEdit, setPendingEdit] = useState<{ id: string; title: string; type: SessionMode; minutes: number } | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; type: SessionMode } | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<{
+    id: string;
+    title: string;
+    type: SessionMode;
+    minutes: number;
+  } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    title: string;
+    type: SessionMode;
+  } | null>(null);
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -59,15 +51,18 @@ export function App() {
   const timerStartedAt = useRef<number | null>(null);
   const elapsedBeforeStart = useRef(0);
 
-  async function refresh() {
-    const [bootstrapData, dashboardData] = await Promise.all([loadBootstrap(), loadDashboard()]);
-    setBootstrap(bootstrapData);
-    setDashboard(dashboardData);
-  }
+  const refresh = useCallback(
+    async (range = dashboardRange) => {
+      const [bootstrapData, dashboardData] = await Promise.all([loadBootstrap(), loadDashboard(range)]);
+      setBootstrap(bootstrapData);
+      setDashboard(dashboardData);
+    },
+    [dashboardRange],
+  );
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     const restoredTimer = readStoredTimer();
@@ -146,30 +141,69 @@ export function App() {
     if (!bootstrap) return;
 
     const form = new FormData(event.currentTarget);
-    const minutes = Number(form.get('minutes'));
+    const finalElapsedSeconds = getCurrentElapsedSeconds();
+    const minutes = isTimerRunning ? Math.max(5, Math.ceil(finalElapsedSeconds / 60)) : Number(form.get('minutes'));
     const title = String(form.get('title'));
+    const notes = String(form.get('notes') ?? '');
+    const projectId = String(form.get('projectId') ?? '');
+    const source = String(form.get('source') ?? '');
 
+    if (isTimerRunning) {
+      stopTimer();
+    }
+
+    setSummary('');
     setIsSaving(true);
     try {
-      await createSession({
-        type: mode,
-        title,
-        topic: title,
-        source: form.get('source') || 'Self study',
-        minutes,
-        notes: form.get('notes'),
-        projectId: mode === 'CODING' ? form.get('projectId') || undefined : undefined,
-        technologyIds: form.getAll('technologyIds'),
-      });
+      try {
+        const createdSession = await createSession({
+          type: mode,
+          title,
+          topic: title,
+          source: source || 'Self study',
+          minutes,
+          notes: notes || undefined,
+          projectId: mode === 'CODING' ? projectId || undefined : undefined,
+          technologyIds: form.getAll('technologyIds'),
+        });
+        applyCreatedSession(mode, createdSession);
+      } catch {
+        setSummary('The local API is not connected yet, so this session stayed in the browser preview. Once PostgreSQL is configured, saves will persist.');
+        return;
+      }
+
       event.currentTarget.reset();
+      try {
+        await refresh();
+        setSummary('');
+      } catch {
+        setSummary('Session saved. Refresh the page if the dashboard does not update right away.');
+      }
+    } finally {
       resetTimer();
       setManualMinutes('60');
-      await refresh();
-    } catch {
-      setSummary('The local API is not connected yet, so this session stayed in the browser preview. Once PostgreSQL is configured, saves will persist.');
-    } finally {
       setIsSaving(false);
     }
+  }
+
+  function applyCreatedSession(type: SessionMode, session: CodingSession | LearningSession | { ok: boolean; persisted: false; reason: string }) {
+    if (!('id' in session)) return;
+
+    setBootstrap((current) => {
+      if (!current) return current;
+
+      if (type === 'CODING') {
+        return {
+          ...current,
+          recentCoding: [session as CodingSession, ...current.recentCoding.filter((item) => item.id !== session.id)].slice(0, 8),
+        };
+      }
+
+      return {
+        ...current,
+        recentLearning: [session as LearningSession, ...current.recentLearning.filter((item) => item.id !== session.id)].slice(0, 8),
+      };
+    });
   }
 
   function startTimer() {
@@ -178,14 +212,20 @@ export function App() {
     setIsTimerRunning(true);
   }
 
-  function stopTimer() {
-    if (timerStartedAt.current !== null) {
-      const secondsSinceStart = Math.floor((Date.now() - timerStartedAt.current) / 1000);
-      const totalSeconds = elapsedBeforeStart.current + secondsSinceStart;
-      setElapsedSeconds(totalSeconds);
-      setManualMinutes(String(Math.max(5, Math.ceil(totalSeconds / 60))));
-      elapsedBeforeStart.current = totalSeconds;
+  function getCurrentElapsedSeconds() {
+    if (!isTimerRunning || timerStartedAt.current === null) {
+      return elapsedSeconds;
     }
+
+    const secondsSinceStart = Math.floor((Date.now() - timerStartedAt.current) / 1000);
+    return elapsedBeforeStart.current + secondsSinceStart;
+  }
+
+  function stopTimer() {
+    const totalSeconds = getCurrentElapsedSeconds();
+    setElapsedSeconds(totalSeconds);
+    setManualMinutes(String(Math.max(5, Math.ceil(totalSeconds / 60))));
+    elapsedBeforeStart.current = totalSeconds;
 
     timerStartedAt.current = null;
     setIsTimerRunning(false);
@@ -204,7 +244,9 @@ export function App() {
       const result = await generateWeeklySummary();
       setSummary(result.content);
     } catch {
-      setSummary('This week has a strong foundation: keep logging sessions, protect one deep-work block, and ship the next visible slice of your flagship project.');
+      setSummary(
+        'This week has a strong foundation: keep logging sessions, protect one deep-work block, and ship the next visible slice of your flagship project.',
+      );
     }
   }
 
@@ -347,10 +389,10 @@ export function App() {
             </section>
 
             <section id="dashboard" className="stats-grid">
-              <Metric icon={<Code2 />} label="Coding week" value={`${dashboard.stats.codingHoursThisWeek}h`} />
-              <Metric icon={<BookOpen />} label="Learning week" value={`${dashboard.stats.learningHoursThisWeek}h`} />
+              <Metric icon={<Code2 />} label={`${dashboard.stats.rangeLabel} coding`} value={`${formatHours(dashboard.stats.rangeCodingHours)}h`} />
+              <Metric icon={<BookOpen />} label={`${dashboard.stats.rangeLabel} learning`} value={`${formatHours(dashboard.stats.rangeLearningHours)}h`} />
               <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
-              <Metric icon={<CalendarCheck />} label="Last 30 days" value={`${dashboard.stats.totalHoursLast30Days}h`} />
+              <Metric icon={<CalendarCheck />} label={`${dashboard.stats.rangeLabel} total`} value={`${formatHours(dashboard.stats.rangeTotalHours)}h`} />
             </section>
           </div>
 
@@ -383,21 +425,66 @@ export function App() {
           <article className="panel activity-panel">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">Momentum</p>
-                <h2>Daily coding hours</h2>
+                <p className="eyebrow">History</p>
+                <h2>Daily totals</h2>
+              </div>
+              <div className="range-tabs" aria-label="Dashboard range">
+                {dashboardRangeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={dashboardRange === option.value ? 'selected' : ''}
+                    onClick={() => setDashboardRange(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </div>
-            <ChartSurface height={290}>
-              {({ width, height }) => (
-                <AreaChart width={width} height={height} data={dashboard.chart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
-                  <XAxis dataKey="date" tickFormatter={(date) => date.slice(5)} tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} width={32} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="hours" stroke="#2f80ed" fill="#b9d7ff" strokeWidth={2} />
-                </AreaChart>
-              )}
-            </ChartSurface>
+            <DailyHistory
+              codingHours={dashboard.stats.rangeCodingHours}
+              history={dashboard.history}
+              learningHours={dashboard.stats.rangeLearningHours}
+              totalHours={dashboard.stats.rangeTotalHours}
+            />
+          </article>
+
+          <article className="panel recent-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Timeline</p>
+                <h2>Recent activity</h2>
+              </div>
+            </div>
+            <div className="activity-list">
+              {recentActivity.map((activity) => (
+                <div key={`${activity.kind}-${activity.id}`} className="activity-row">
+                  <span>{activity.kind}</span>
+                  <strong>{activity.title}</strong>
+                  <time>{Math.round((activity.minutes / 60) * 10) / 10}h</time>
+                  <button
+                    type="button"
+                    className="edit-activity"
+                    onClick={() => setPendingEdit(activity)}
+                    disabled={savingEditId === activity.id || deletingSessionId === activity.id}
+                    aria-label={`Edit ${activity.title}`}
+                    title="Edit session"
+                  >
+                    {savingEditId === activity.id ? <Loader2 className="spin" size={15} /> : <Pencil size={15} />}
+                  </button>
+                  <button
+                    type="button"
+                    className="delete-activity"
+                    onClick={() => setPendingDelete(activity)}
+                    disabled={deletingSessionId === activity.id}
+                    aria-label={`Delete ${activity.title}`}
+                    title="Delete session"
+                  >
+                    {deletingSessionId === activity.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                  </button>
+                </div>
+              ))}
+            </div>
           </article>
 
           <article id="goals" className="panel goals-panel">
@@ -462,44 +549,6 @@ export function App() {
                 </li>
               ))}
             </ul>
-          </article>
-
-          <article className="panel recent-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">Timeline</p>
-                <h2>Recent activity</h2>
-              </div>
-            </div>
-            <div className="activity-list">
-              {recentActivity.map((activity) => (
-                <div key={`${activity.kind}-${activity.id}`} className="activity-row">
-                  <span>{activity.kind}</span>
-                  <strong>{activity.title}</strong>
-                  <time>{Math.round(activity.minutes / 60 * 10) / 10}h</time>
-                  <button
-                    type="button"
-                    className="edit-activity"
-                    onClick={() => setPendingEdit(activity)}
-                    disabled={savingEditId === activity.id || deletingSessionId === activity.id}
-                    aria-label={`Edit ${activity.title}`}
-                    title="Edit session"
-                  >
-                    {savingEditId === activity.id ? <Loader2 className="spin" size={15} /> : <Pencil size={15} />}
-                  </button>
-                  <button
-                    type="button"
-                    className="delete-activity"
-                    onClick={() => setPendingDelete(activity)}
-                    disabled={deletingSessionId === activity.id}
-                    aria-label={`Delete ${activity.title}`}
-                    title="Delete session"
-                  >
-                    {deletingSessionId === activity.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
-                  </button>
-                </div>
-              ))}
-            </div>
           </article>
         </section>
       </section>
@@ -582,6 +631,69 @@ function formatDuration(totalSeconds: number) {
 
 function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+function formatHistoryDate(date: string) {
+  return new Intl.DateTimeFormat('en-ZA', {
+    day: 'numeric',
+    month: 'short',
+    weekday: 'short',
+  }).format(new Date(`${date}T00:00:00`));
+}
+
+function DailyHistory({
+  codingHours,
+  history,
+  learningHours,
+  totalHours,
+}: {
+  codingHours: number;
+  history: DashboardData['history'];
+  learningHours: number;
+  totalHours: number;
+}) {
+  return (
+    <>
+      <dl className="history-summary" aria-label="Selected range totals">
+        <div>
+          <dt>Total</dt>
+          <dd>{formatHours(totalHours)}h</dd>
+        </div>
+        <div>
+          <dt>Coding</dt>
+          <dd>{formatHours(codingHours)}h</dd>
+        </div>
+        <div>
+          <dt>Learning</dt>
+          <dd>{formatHours(learningHours)}h</dd>
+        </div>
+      </dl>
+
+      {history.length === 0 ? (
+        <p className="empty-history">No sessions logged for this range yet.</p>
+      ) : (
+        <div className="history-list">
+          {history.map((day) => (
+            <article className="history-row" key={day.date}>
+              <time dateTime={day.date}>{formatHistoryDate(day.date)}</time>
+              <div>
+                <span>Total</span>
+                <strong>{formatHours(day.totalHours)}h</strong>
+              </div>
+              <div>
+                <span>Coding</span>
+                <strong>{formatHours(day.codingHours)}h</strong>
+              </div>
+              <div>
+                <span>Learning</span>
+                <strong>{formatHours(day.learningHours)}h</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 function readStoredTimer() {
@@ -704,15 +816,7 @@ function QuickLogPanel({
         </div>
         <label>
           <span>Minutes</span>
-          <input
-            name="minutes"
-            type="number"
-            min="5"
-            max="1440"
-            value={manualMinutes}
-            onChange={(event) => onMinutesChange(event.target.value)}
-            required
-          />
+          <input name="minutes" type="number" min="5" max="1440" value={manualMinutes} onChange={(event) => onMinutesChange(event.target.value)} required />
         </label>
 
         <details className="optional-details">

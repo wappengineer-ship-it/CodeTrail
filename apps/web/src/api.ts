@@ -1,5 +1,5 @@
 import { mockBootstrap, mockDashboard } from './mockData';
-import type { BootstrapData, DashboardData } from './types';
+import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
 
 const rawApiUrl = import.meta.env.VITE_API_URL || '';
 const API_URL = rawApiUrl && !rawApiUrl.startsWith('http') ? `https://${rawApiUrl}` : rawApiUrl;
@@ -29,16 +29,16 @@ export async function loadBootstrap() {
   }
 }
 
-export async function loadDashboard() {
+export async function loadDashboard(range = 'week') {
   try {
-    return await request<DashboardData>('/dashboard');
+    return await request<DashboardData>(`/dashboard?range=${encodeURIComponent(range)}`);
   } catch {
     return mockDashboard;
   }
 }
 
 export async function createSession(payload: unknown) {
-  return request('/sessions', {
+  return request<CodingSession | LearningSession | { ok: boolean; persisted: false; reason: string }>('/sessions', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
