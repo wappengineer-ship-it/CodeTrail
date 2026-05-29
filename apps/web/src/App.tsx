@@ -498,8 +498,34 @@ export function App() {
               <Metric icon={<BookOpen />} label={`${dashboard.stats.rangeLabel} learning`} value={`${formatHours(dashboard.stats.rangeLearningHours)}h`} />
               <Metric icon={<CalendarCheck />} label={`${dashboard.stats.rangeLabel} total`} value={`${formatHours(dashboard.stats.rangeTotalHours)}h`} />
               <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
-
             </section>
+
+            <article className="panel activity-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">History</p>
+                  <h2>Daily totals</h2>
+                </div>
+                <div className="range-tabs" aria-label="Dashboard range">
+                  {dashboardRangeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={dashboardRange === option.value ? 'selected' : ''}
+                      onClick={() => setDashboardRange(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <RangeChart
+                chart={dashboard.chart}
+                codingHours={dashboard.stats.rangeCodingHours}
+                learningHours={dashboard.stats.rangeLearningHours}
+                totalHours={dashboard.stats.rangeTotalHours}
+              />
+            </article>
           </div>
 
           <QuickLogPanel
@@ -522,33 +548,6 @@ export function App() {
         </section>
 
         <section className="main-grid">
-          <article className="panel activity-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">History</p>
-                <h2>Daily totals</h2>
-              </div>
-              <div className="range-tabs" aria-label="Dashboard range">
-                {dashboardRangeOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={dashboardRange === option.value ? 'selected' : ''}
-                    onClick={() => setDashboardRange(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <RangeChart
-              chart={dashboard.chart}
-              codingHours={dashboard.stats.rangeCodingHours}
-              learningHours={dashboard.stats.rangeLearningHours}
-              totalHours={dashboard.stats.rangeTotalHours}
-            />
-          </article>
-
           <article className="panel recent-panel">
             <div className="panel-heading">
               <div>

@@ -300,20 +300,7 @@ h2 {
 }
 
 .activity-panel {
-  grid-column: 1 / -1;
   min-height: 370px;
-  order: 0;
-}
-
-.recent-panel {
-  grid-column: 1 / -1;
-  order: 1;
-}
-
-.goals-panel,
-.tech-panel,
-.insight-panel {
-  order: 2;
 }
 
 .history-summary {
