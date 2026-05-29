@@ -39,3 +39,10 @@ export const sessionDeleteSchema = z.object({
   id: z.string().min(1),
   type: z.enum(['CODING', 'LEARNING']),
 });
+
+export const sessionUpdateSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(['CODING', 'LEARNING']),
+  title: z.string().min(2).max(120),
+  minutes: z.number().int().min(5).max(1440),
+});

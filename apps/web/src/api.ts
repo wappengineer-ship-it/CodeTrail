@@ -48,6 +48,13 @@ export async function deleteSession(type: 'CODING' | 'LEARNING', id: string) {
   return request<void>(`/sessions/${type}/${id}`, { method: 'DELETE' });
 }
 
+export async function updateSession(type: 'CODING' | 'LEARNING', id: string, payload: { title: string; minutes: number }) {
+  return request(`/sessions/${type}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function generateWeeklySummary() {
   return request<{ content: string }>('/summaries/weekly', { method: 'POST' });
 }

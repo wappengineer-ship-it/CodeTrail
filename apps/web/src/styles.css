@@ -595,14 +595,28 @@ fieldset {
   font-weight: 800;
 }
 
+.edit-activity,
 .delete-activity {
   display: inline-grid;
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid #ead0cc;
   border-radius: 8px;
+}
+
+.edit-activity {
+  border: 1px solid #c8dbf6;
+  background: #f1f7ff;
+  color: #2f80ed;
+}
+
+.edit-activity:hover:not(:disabled) {
+  background: #e4f0ff;
+}
+
+.delete-activity {
+  border: 1px solid #ead0cc;
   background: #fff8f7;
   color: #a03b2e;
 }
@@ -611,6 +625,7 @@ fieldset {
   background: #ffecea;
 }
 
+.edit-activity:disabled,
 .delete-activity:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -641,6 +656,11 @@ fieldset {
   margin: 10px 0 0;
   color: #5f6f85;
   line-height: 1.5;
+}
+
+.edit-fields {
+  display: grid;
+  gap: 14px;
 }
 
 .dialog-actions {

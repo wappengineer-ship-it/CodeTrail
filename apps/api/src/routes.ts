@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from './prisma.js';
 import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
-import { goalCreateSchema, projectCreateSchema, sessionCreateSchema, sessionDeleteSchema } from './validators.js';
+import { goalCreateSchema, projectCreateSchema, sessionCreateSchema, sessionDeleteSchema, sessionUpdateSchema } from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
 
@@ -197,6 +197,30 @@ router.delete('/sessions/:type/:id', async (req, res, next) => {
 
     await prisma.learningSession.delete({ where: { id: input.id, userId: user.id } });
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/sessions/:type/:id', async (req, res, next) => {
+  try {
+    const user = await getDemoUser();
+    const input = sessionUpdateSchema.parse({ ...req.body, id: req.params.id, type: req.params.type });
+
+    if (input.type === 'CODING') {
+      const session = await prisma.codingSession.update({
+        where: { id: input.id, userId: user.id },
+        data: { title: input.title, minutes: input.minutes },
+      });
+      res.json(session);
+      return;
+    }
+
+    const session = await prisma.learningSession.update({
+      where: { id: input.id, userId: user.id },
+      data: { topic: input.title, minutes: input.minutes },
+    });
+    res.json(session);
   } catch (error) {
     next(error);
   }

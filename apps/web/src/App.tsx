@@ -18,6 +18,7 @@ import {
   Flame,
   Goal,
   Loader2,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -26,7 +27,7 @@ import {
   TimerReset,
   Trash2,
 } from 'lucide-react';
-import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard } from './api';
+import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard, updateSession } from './api';
 import type { BootstrapData, DashboardData } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
@@ -46,7 +47,9 @@ export function App() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [mode, setMode] = useState<SessionMode>('CODING');
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingEdit, setPendingEdit] = useState<{ id: string; title: string; type: SessionMode; minutes: number } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string; type: SessionMode } | null>(null);
+  const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isTimerStorageReady, setIsTimerStorageReady] = useState(false);
@@ -122,15 +125,18 @@ export function App() {
   }, [elapsedSeconds, isTimerRunning, isTimerStorageReady, manualMinutes, mode]);
 
   useEffect(() => {
-    if (!pendingDelete) return;
+    if (!pendingDelete && !pendingEdit) return;
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setPendingDelete(null);
+      if (event.key === 'Escape') {
+        setPendingDelete(null);
+        setPendingEdit(null);
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pendingDelete]);
+  }, [pendingDelete, pendingEdit]);
 
   const firstProject = bootstrap?.projects[0];
   const firstTechnology = bootstrap?.technologies[0];
@@ -222,6 +228,26 @@ export function App() {
       setSummary('Could not delete that session. Please try again.');
     } finally {
       setDeletingSessionId(null);
+    }
+  }
+
+  async function handleEditSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingEdit) return;
+
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get('title'));
+    const minutes = Number(form.get('minutes'));
+
+    setSavingEditId(pendingEdit.id);
+    try {
+      await updateSession(pendingEdit.type, pendingEdit.id, { title, minutes });
+      setPendingEdit(null);
+      await refresh();
+    } catch {
+      setSummary('Could not update that session. Please check the values and try again.');
+    } finally {
+      setSavingEditId(null);
     }
   }
 
@@ -453,6 +479,16 @@ export function App() {
                   <time>{Math.round(activity.minutes / 60 * 10) / 10}h</time>
                   <button
                     type="button"
+                    className="edit-activity"
+                    onClick={() => setPendingEdit(activity)}
+                    disabled={savingEditId === activity.id || deletingSessionId === activity.id}
+                    aria-label={`Edit ${activity.title}`}
+                    title="Edit session"
+                  >
+                    {savingEditId === activity.id ? <Loader2 className="spin" size={15} /> : <Pencil size={15} />}
+                  </button>
+                  <button
+                    type="button"
                     className="delete-activity"
                     onClick={() => setPendingDelete(activity)}
                     disabled={deletingSessionId === activity.id}
@@ -493,6 +529,43 @@ export function App() {
               </button>
             </div>
           </section>
+        </div>
+      )}
+
+      {pendingEdit && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setPendingEdit(null)}>
+          <form
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={handleEditSubmit}
+          >
+            <div>
+              <p className="eyebrow">Edit session</p>
+              <h2 id="edit-dialog-title">{pendingEdit.type === 'CODING' ? 'Coding log' : 'Learning log'}</h2>
+            </div>
+            <div className="edit-fields">
+              <label>
+                <span>{pendingEdit.type === 'CODING' ? 'Title' : 'Topic'}</span>
+                <input name="title" defaultValue={pendingEdit.title} minLength={2} required />
+              </label>
+              <label>
+                <span>Minutes</span>
+                <input name="minutes" type="number" min="5" max="1440" defaultValue={pendingEdit.minutes} required />
+              </label>
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="secondary-button" onClick={() => setPendingEdit(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button" disabled={savingEditId === pendingEdit.id}>
+                {savingEditId === pendingEdit.id ? <Loader2 className="spin" size={16} /> : <Pencil size={16} />}
+                Save
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </main>
