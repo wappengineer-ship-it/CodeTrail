@@ -42,7 +42,7 @@ const defaultQuickLogDraft: QuickLogDraft = {
   projectId: '',
   source: 'Docs and practice',
   technologyIds: [],
-  title: 'Coding session',
+  title: 'Work session',
 };
 
 export function App() {
@@ -385,7 +385,7 @@ export function App() {
     return [
       ...bootstrap.recentCoding.map((session) => ({
         id: session.id,
-        kind: 'Coding',
+        kind: 'Work',
         type: 'CODING' as const,
         title: session.title,
         minutes: session.minutes,
@@ -465,7 +465,7 @@ export function App() {
               </div>
               <dl>
                 <div>
-                  <dt>Coding</dt>
+                  <dt>Work</dt>
                   <dd>{formatHours(todayCodingHours)}h</dd>
                 </div>
                 <div>
@@ -476,7 +476,7 @@ export function App() {
             </section>
 
             <section id="dashboard" className="stats-grid">
-              <Metric icon={<Code2 />} label={`${dashboard.stats.rangeLabel} coding`} value={`${formatHours(dashboard.stats.rangeCodingHours)}h`} />
+              <Metric icon={<Code2 />} label={`${dashboard.stats.rangeLabel} work`} value={`${formatHours(dashboard.stats.rangeCodingHours)}h`} />
               <Metric icon={<BookOpen />} label={`${dashboard.stats.rangeLabel} learning`} value={`${formatHours(dashboard.stats.rangeLearningHours)}h`} />
               <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
               <Metric icon={<CalendarCheck />} label={`${dashboard.stats.rangeLabel} total`} value={`${formatHours(dashboard.stats.rangeTotalHours)}h`} />
@@ -681,7 +681,7 @@ export function App() {
           >
             <div>
               <p className="eyebrow">Edit session</p>
-              <h2 id="edit-dialog-title">{pendingEdit.type === 'CODING' ? 'Coding log' : 'Learning log'}</h2>
+              <h2 id="edit-dialog-title">{pendingEdit.type === 'CODING' ? 'Work log' : 'Learning log'}</h2>
             </div>
             <div className="edit-fields">
               <label>
@@ -722,7 +722,7 @@ function formatHours(hours: number) {
 }
 
 function defaultTitleForMode(mode: SessionMode) {
-  return mode === 'CODING' ? 'Coding session' : 'Learning session';
+  return mode === 'CODING' ? 'Work session' : 'Learning session';
 }
 
 function addMinutesToHours(hours: number, minutes: number) {
@@ -813,7 +813,7 @@ function RangeChart({
           <dd>{formatHours(totalHours)}h</dd>
         </div>
         <div>
-          <dt>Coding</dt>
+          <dt>Work</dt>
           <dd>{formatHours(codingHours)}h</dd>
         </div>
         <div>
@@ -894,7 +894,7 @@ function readStoredQuickLog() {
       projectId: String(parsed.projectId ?? ''),
       source: String(parsed.source ?? 'Docs and practice'),
       technologyIds: Array.isArray(parsed.technologyIds) ? parsed.technologyIds.map(String) : [],
-      title: String(parsed.title ?? defaultTitleForMode(parsed.mode)),
+      title: parsed.title === 'Coding session' ? 'Work session' : String(parsed.title ?? defaultTitleForMode(parsed.mode)),
     } satisfies QuickLogDraft;
   } catch {
     removeStoredQuickLog();
@@ -968,7 +968,7 @@ function QuickLogPanel({
         </div>
         <div className="segmented" aria-label="Session type">
           <button type="button" className={mode === 'CODING' ? 'selected' : ''} onClick={() => onModeChange('CODING')}>
-            <Code2 size={16} /> Code
+            <Code2 size={16} /> Work
           </button>
           <button type="button" className={mode === 'LEARNING' ? 'selected' : ''} onClick={() => onModeChange('LEARNING')}>
             <BookOpen size={16} /> Learn
@@ -1017,7 +1017,7 @@ function QuickLogPanel({
           <summary>Details</summary>
           <div className="details-fields">
             <label>
-              <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
+              <span>{mode === 'CODING' ? 'Work title' : 'Topic'}</span>
               <input name="title" value={draft.title} onChange={(event) => onDraftChange({ title: event.target.value })} required />
             </label>
 

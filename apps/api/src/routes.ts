@@ -473,7 +473,7 @@ router.post('/summaries/weekly', async (_req, res, next) => {
     const learningHours = toHours(learning.reduce((sum, session) => sum + session.minutes, 0));
     const projectNames = [...new Set(coding.map((session) => session.project?.name).filter(Boolean))].join(', ') || 'independent practice';
 
-    let content = `This week you logged ${codingHours} coding hours and ${learningHours} learning hours. Your strongest project focus was ${projectNames}. Next week, protect one deep-work block, ship one visible project increment, and keep notes on every concept that still feels fuzzy.`;
+    let content = `This week you logged ${codingHours} work hours and ${learningHours} learning hours. Your strongest project focus was ${projectNames}. Next week, protect one deep-work block, ship one visible project increment, and keep notes on every concept that still feels fuzzy.`;
 
     if (env.OPENAI_API_KEY) {
       content = await generateAiSummary({
@@ -520,9 +520,9 @@ async function generateAiSummary(input: { codingHours: number; learningHours: nu
   });
 
   if (!response.ok) {
-    return `This week you logged ${input.codingHours} coding hours and ${input.learningHours} learning hours. Keep the next step small, visible, and shippable.`;
+    return `This week you logged ${input.codingHours} work hours and ${input.learningHours} learning hours. Keep the next step small, visible, and shippable.`;
   }
 
   const json = (await response.json()) as { output_text?: string };
-  return json.output_text?.trim() || `This week you logged ${input.codingHours} coding hours and ${input.learningHours} learning hours.`;
+  return json.output_text?.trim() || `This week you logged ${input.codingHours} work hours and ${input.learningHours} learning hours.`;
 }

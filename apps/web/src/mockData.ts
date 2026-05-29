@@ -42,7 +42,7 @@ export const mockBootstrap: BootstrapData = {
   goals: [
     {
       id: 'weekly-hours',
-      title: 'Log 12 focused coding hours this week',
+      title: 'Log 12 focused work hours this week',
       description: 'Protect deep work blocks before adding new polish.',
       cadence: 'WEEKLY',
       status: 'ACTIVE',

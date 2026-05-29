@@ -59,7 +59,7 @@ async function main() {
     data: {
       userId: user.id,
       name: 'CodeTrail',
-      description: 'Flagship tracker for coding hours, learning progress, goals, streaks, projects, and weekly summaries.',
+      description: 'Flagship tracker for work hours, learning progress, goals, streaks, projects, and weekly summaries.',
       status: 'active',
       startedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 21),
       technologies: {
@@ -134,7 +134,7 @@ async function main() {
       {
         userId: user.id,
         projectId: codeTrail.id,
-        title: 'Log 12 focused coding hours this week',
+        title: 'Log 12 focused work hours this week',
         description: 'Protect deep work blocks before adding new polish.',
         cadence: 'WEEKLY',
         targetValue: 12,
