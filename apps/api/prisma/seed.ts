@@ -138,7 +138,7 @@ async function main() {
         description: 'Protect deep work blocks before adding new polish.',
         cadence: 'WEEKLY',
         targetValue: 12,
-        currentValue: 7,
+        currentValue: 0,
         unit: 'hours',
         dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5),
       },

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { BookOpen, Brain, CalendarCheck, Code2, Flame, Goal, Loader2, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
+import { BookOpen, Brain, Code2, Flame, Goal, Loader2, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
 import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard, updateSession } from './api';
 import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
 
@@ -255,12 +255,14 @@ export function App() {
       if (type === 'CODING') {
         return {
           ...current,
+          goals: advanceVisibleGoals(current.goals, session.minutes),
           recentCoding: [session as CodingSession, ...current.recentCoding.filter((item) => item.id !== session.id)].slice(0, 8),
         };
       }
 
       return {
         ...current,
+        goals: advanceVisibleGoals(current.goals, session.minutes),
         recentLearning: [session as LearningSession, ...current.recentLearning.filter((item) => item.id !== session.id)].slice(0, 8),
       };
     });
@@ -438,6 +440,8 @@ export function App() {
   const todayCodingHours = dashboard.stats.codingHoursToday ?? 0;
   const todayLearningHours = dashboard.stats.learningHoursToday ?? 0;
   const todayTotalHours = dashboard.stats.totalHoursToday ?? todayCodingHours + todayLearningHours;
+  const activeHourGoal = bootstrap.goals.find((goal) => goal.status === 'ACTIVE' && goal.unit.toLowerCase() === 'hours');
+  const activeHourGoalPercent = activeHourGoal ? Math.min(100, Math.round((activeHourGoal.currentValue / activeHourGoal.targetValue) * 100)) : 0;
 
   return (
     <main className="app-shell">
@@ -494,9 +498,16 @@ export function App() {
             </section>
 
             <section id="dashboard" className="stats-grid">
-              <Metric icon={<Code2 />} label={`${dashboard.stats.rangeLabel} work`} value={`${formatHours(dashboard.stats.rangeCodingHours)}h`} />
-              <Metric icon={<BookOpen />} label={`${dashboard.stats.rangeLabel} learning`} value={`${formatHours(dashboard.stats.rangeLearningHours)}h`} />
-              <Metric icon={<CalendarCheck />} label={`${dashboard.stats.rangeLabel} total`} value={`${formatHours(dashboard.stats.rangeTotalHours)}h`} />
+              <Metric
+                icon={<Goal />}
+                label={activeHourGoal ? `${formatGoalValue(activeHourGoal.targetValue)}h goal` : '12h goal'}
+                value={
+                  activeHourGoal
+                    ? `${formatGoalValue(activeHourGoal.currentValue)}/${formatGoalValue(activeHourGoal.targetValue)}h`
+                    : 'No goal'
+                }
+                detail={activeHourGoal ? `${activeHourGoalPercent}% complete` : undefined}
+              />
               <Metric icon={<Flame />} label="Current streak" value={`${dashboard.stats.streakDays}d`} />
             </section>
 
@@ -601,7 +612,7 @@ export function App() {
                     <div>
                       <strong>{goal.title}</strong>
                       <span>
-                        {goal.currentValue}/{goal.targetValue} {goal.unit}
+                        {formatGoalValue(goal.currentValue)}/{formatGoalValue(goal.targetValue)} {goal.unit}
                       </span>
                     </div>
                     <div className="progress" aria-label={`${percent}% complete`}>
@@ -743,6 +754,24 @@ function formatDuration(totalSeconds: number) {
 
 function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
+}
+
+function formatGoalValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function advanceVisibleGoals(goals: BootstrapData['goals'], minutes: number) {
+  const hours = Math.round((minutes / 60) * 10) / 10;
+
+  return goals.map((goal) => {
+    const isHourGoal = goal.status === 'ACTIVE' && goal.unit.toLowerCase() === 'hours';
+    if (!isHourGoal) return goal;
+
+    return {
+      ...goal,
+      currentValue: Math.min(goal.targetValue, Math.round((goal.currentValue + hours) * 10) / 10),
+    };
+  });
 }
 
 function addMinutesToHours(hours: number, minutes: number) {
@@ -1156,12 +1185,13 @@ function ChartSurface({
   );
 }
 
-function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function Metric({ detail, icon, label, value }: { detail?: string; icon: ReactNode; label: string; value: string }) {
   return (
     <article className="metric">
       <div className="metric-icon">{icon}</div>
       <span>{label}</span>
       <strong>{value}</strong>
+      {detail && <small>{detail}</small>}
     </article>
   );
 }

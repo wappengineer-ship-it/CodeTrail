@@ -47,7 +47,7 @@ export const mockBootstrap: BootstrapData = {
       cadence: 'WEEKLY',
       status: 'ACTIVE',
       targetValue: 12,
-      currentValue: 7,
+      currentValue: 0,
       unit: 'hours',
     },
     {

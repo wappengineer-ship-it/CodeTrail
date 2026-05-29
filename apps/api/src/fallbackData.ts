@@ -36,7 +36,7 @@ export const fallbackBootstrap = {
       cadence: 'WEEKLY',
       status: 'ACTIVE',
       targetValue: 12,
-      currentValue: 7,
+      currentValue: 0,
       unit: 'hours',
     },
     {

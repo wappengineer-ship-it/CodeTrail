@@ -15,6 +15,7 @@ export type Project = {
 
 export type Goal = {
   id: string;
+  projectId?: string;
   title: string;
   description?: string;
   cadence: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'MILESTONE';
@@ -27,6 +28,7 @@ export type Goal = {
 
 export type CodingSession = {
   id: string;
+  projectId?: string;
   title: string;
   notes?: string;
   minutes: number;

@@ -48,6 +48,28 @@ function buildDayKeys(startDate: Date, endDate = new Date()) {
   return days;
 }
 
+async function advanceHourGoals(input: { minutes: number; userId: string }) {
+  const hours = toHours(input.minutes);
+  if (hours <= 0) return;
+
+  const goals = await prisma.goal.findMany({
+    where: {
+      userId: input.userId,
+      status: 'ACTIVE',
+      unit: { equals: 'hours', mode: 'insensitive' },
+    },
+  });
+
+  await Promise.all(
+    goals.map((goal) =>
+      prisma.goal.update({
+        where: { id: goal.id },
+        data: { currentValue: Math.min(goal.targetValue, goal.currentValue + hours) },
+      }),
+    ),
+  );
+}
+
 router.get('/bootstrap', async (_req, res, next) => {
   try {
     const user = await getDemoUser();
@@ -296,6 +318,7 @@ router.post('/sessions', async (req, res, next) => {
           technologies: { include: { technology: true } },
         },
       });
+      await advanceHourGoals({ minutes: input.minutes, userId: user.id });
       res.status(201).json(session);
       return;
     }
@@ -315,6 +338,7 @@ router.post('/sessions', async (req, res, next) => {
       },
       include: { technologies: { include: { technology: true } } },
     });
+    await advanceHourGoals({ minutes: input.minutes, userId: user.id });
     res.status(201).json(session);
   } catch (error) {
     if (isDevelopmentFallbackAllowed()) {
@@ -450,13 +474,6 @@ router.post('/summaries/weekly', async (_req, res, next) => {
   try {
     const user = await getDemoUser();
     const weekStart = startOfWeek();
-    const existing = await prisma.weeklySummary.findUnique({
-      where: { userId_weekStart: { userId: user.id, weekStart } },
-    });
-    if (existing) {
-      res.json(existing);
-      return;
-    }
 
     const [coding, learning, goals] = await Promise.all([
       prisma.codingSession.findMany({
@@ -469,25 +486,31 @@ router.post('/summaries/weekly', async (_req, res, next) => {
       prisma.goal.findMany({ where: { userId: user.id, status: 'ACTIVE' } }),
     ]);
 
-    const codingHours = toHours(coding.reduce((sum, session) => sum + session.minutes, 0));
-    const learningHours = toHours(learning.reduce((sum, session) => sum + session.minutes, 0));
+    const codingMinutes = coding.reduce((sum, session) => sum + session.minutes, 0);
+    const learningMinutes = learning.reduce((sum, session) => sum + session.minutes, 0);
+    const codingHours = toHours(codingMinutes);
+    const learningHours = toHours(learningMinutes);
+    const totalHours = toHours(codingMinutes + learningMinutes);
     const projectNames = [...new Set(coding.map((session) => session.project?.name).filter(Boolean))].join(', ') || 'independent practice';
 
-    let content = `This week you logged ${codingHours} work hours and ${learningHours} learning hours. Your strongest project focus was ${projectNames}. Next week, protect one deep-work block, ship one visible project increment, and keep notes on every concept that still feels fuzzy.`;
+    let content = `This week you logged ${totalHours} total hours: ${codingHours} work hours and ${learningHours} learning hours. Your strongest project focus was ${projectNames}. Next week, protect one deep-work block, ship one visible project increment, and keep notes on every concept that still feels fuzzy.`;
 
     if (env.OPENAI_API_KEY) {
       content = await generateAiSummary({
         codingHours,
         learningHours,
+        totalHours,
         projectNames,
         goals: goals.map((goal) => goal.title),
       });
     }
 
-    const summary = await prisma.weeklySummary.create({
-      data: { userId: user.id, weekStart, content },
+    const summary = await prisma.weeklySummary.upsert({
+      where: { userId_weekStart: { userId: user.id, weekStart } },
+      create: { userId: user.id, weekStart, content },
+      update: { content },
     });
-    res.status(201).json(summary);
+    res.json(summary);
   } catch (error) {
     if (isDevelopmentFallbackAllowed()) {
       res.json(fallbackWeeklySummary());
@@ -497,7 +520,7 @@ router.post('/summaries/weekly', async (_req, res, next) => {
   }
 });
 
-async function generateAiSummary(input: { codingHours: number; learningHours: number; projectNames: string; goals: string[] }) {
+async function generateAiSummary(input: { codingHours: number; learningHours: number; totalHours: number; projectNames: string; goals: string[] }) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -520,9 +543,9 @@ async function generateAiSummary(input: { codingHours: number; learningHours: nu
   });
 
   if (!response.ok) {
-    return `This week you logged ${input.codingHours} work hours and ${input.learningHours} learning hours. Keep the next step small, visible, and shippable.`;
+    return `This week you logged ${input.totalHours} total hours: ${input.codingHours} work hours and ${input.learningHours} learning hours. Keep the next step small, visible, and shippable.`;
   }
 
   const json = (await response.json()) as { output_text?: string };
-  return json.output_text?.trim() || `This week you logged ${input.codingHours} work hours and ${input.learningHours} learning hours.`;
+  return json.output_text?.trim() || `This week you logged ${input.totalHours} total hours: ${input.codingHours} work hours and ${input.learningHours} learning hours.`;
 }
