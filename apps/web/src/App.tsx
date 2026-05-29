@@ -8,6 +8,7 @@ import type { BootstrapData, CodingSession, DashboardData, LearningSession } fro
 type SessionMode = 'CODING' | 'LEARNING';
 type DashboardRange = 'today' | 'week' | 'month' | 'all';
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
+const QUICK_LOG_STORAGE_KEY = 'codetrail.quick-log.v1';
 const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
   { label: 'Today', value: 'today' },
   { label: 'Week', value: 'week' },
@@ -24,11 +25,32 @@ type StoredTimer = {
   startedAt: number | null;
 };
 
+type QuickLogDraft = {
+  detailsOpen: boolean;
+  mode: SessionMode;
+  notes: string;
+  projectId: string;
+  source: string;
+  technologyIds: string[];
+  title: string;
+};
+
+const defaultQuickLogDraft: QuickLogDraft = {
+  detailsOpen: false,
+  mode: 'CODING',
+  notes: '',
+  projectId: '',
+  source: 'Docs and practice',
+  technologyIds: [],
+  title: 'Coding session',
+};
+
 export function App() {
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
-  const [mode, setMode] = useState<SessionMode>('CODING');
+  const [quickLogDraft, setQuickLogDraft] = useState<QuickLogDraft>(() => readStoredQuickLog() ?? defaultQuickLogDraft);
+  const [mode, setMode] = useState<SessionMode>(() => readStoredQuickLog()?.mode ?? 'CODING');
   const [isSaving, setIsSaving] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<{
     id: string;
@@ -74,6 +96,7 @@ export function App() {
     elapsedBeforeStart.current = restoredTimer.elapsedBeforeStart;
     timerStartedAt.current = restoredTimer.startedAt;
     setMode(restoredTimer.mode);
+    setQuickLogDraft((draft) => ({ ...draft, mode: restoredTimer.mode }));
     setManualMinutes(restoredTimer.manualMinutes);
 
     if (restoredTimer.isRunning && restoredTimer.startedAt !== null) {
@@ -120,6 +143,10 @@ export function App() {
   }, [elapsedSeconds, isTimerRunning, isTimerStorageReady, manualMinutes, mode]);
 
   useEffect(() => {
+    writeStoredQuickLog(quickLogDraft);
+  }, [quickLogDraft]);
+
+  useEffect(() => {
     if (!pendingDelete && !pendingEdit) return;
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -134,6 +161,20 @@ export function App() {
   }, [pendingDelete, pendingEdit]);
 
   const firstProject = bootstrap?.projects[0];
+
+  function handleModeChange(nextMode: SessionMode) {
+    const previousMode = mode;
+    setMode(nextMode);
+    setQuickLogDraft((draft) => ({
+      ...draft,
+      mode: nextMode,
+      title: draft.title === defaultTitleForMode(previousMode) ? defaultTitleForMode(nextMode) : draft.title,
+    }));
+  }
+
+  function updateQuickLogDraft(patch: Partial<QuickLogDraft>) {
+    setQuickLogDraft((draft) => ({ ...draft, ...patch }));
+  }
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,7 +212,6 @@ export function App() {
         return;
       }
 
-      event.currentTarget.reset();
       try {
         await refresh();
         setSummary('');
@@ -445,13 +485,15 @@ export function App() {
 
           <QuickLogPanel
             bootstrap={bootstrap}
+            draft={quickLogDraft}
             elapsedSeconds={elapsedSeconds}
             firstProject={firstProject}
             isSaving={isSaving}
             isTimerRunning={isTimerRunning}
             manualMinutes={manualMinutes}
             mode={mode}
-            onModeChange={setMode}
+            onDraftChange={updateQuickLogDraft}
+            onModeChange={handleModeChange}
             onResetTimer={resetTimer}
             onStartTimer={startTimer}
             onStopTimer={stopTimer}
@@ -679,6 +721,10 @@ function formatHours(hours: number) {
   return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
+function defaultTitleForMode(mode: SessionMode) {
+  return mode === 'CODING' ? 'Coding session' : 'Learning session';
+}
+
 function addMinutesToHours(hours: number, minutes: number) {
   return Math.round(((Math.round(hours * 60) + minutes) / 60) * 10) / 10;
 }
@@ -833,8 +879,48 @@ function removeStoredTimer() {
   }
 }
 
+function readStoredQuickLog() {
+  try {
+    const rawDraft = window.localStorage.getItem(QUICK_LOG_STORAGE_KEY);
+    if (!rawDraft) return null;
+
+    const parsed = JSON.parse(rawDraft) as Partial<QuickLogDraft>;
+    if (parsed.mode !== 'CODING' && parsed.mode !== 'LEARNING') return null;
+
+    return {
+      detailsOpen: Boolean(parsed.detailsOpen),
+      mode: parsed.mode,
+      notes: String(parsed.notes ?? ''),
+      projectId: String(parsed.projectId ?? ''),
+      source: String(parsed.source ?? 'Docs and practice'),
+      technologyIds: Array.isArray(parsed.technologyIds) ? parsed.technologyIds.map(String) : [],
+      title: String(parsed.title ?? defaultTitleForMode(parsed.mode)),
+    } satisfies QuickLogDraft;
+  } catch {
+    removeStoredQuickLog();
+    return null;
+  }
+}
+
+function writeStoredQuickLog(draft: QuickLogDraft) {
+  try {
+    window.localStorage.setItem(QUICK_LOG_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Form persistence should never block logging a session.
+  }
+}
+
+function removeStoredQuickLog() {
+  try {
+    window.localStorage.removeItem(QUICK_LOG_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures; the form can still work without persistence.
+  }
+}
+
 function QuickLogPanel({
   bootstrap,
+  draft,
   elapsedSeconds,
   firstProject,
   isSaving,
@@ -842,6 +928,7 @@ function QuickLogPanel({
   manualMinutes,
   mode,
   onModeChange,
+  onDraftChange,
   onMinutesChange,
   onResetTimer,
   onStartTimer,
@@ -849,6 +936,7 @@ function QuickLogPanel({
   onSubmit,
 }: {
   bootstrap: BootstrapData;
+  draft: QuickLogDraft;
   elapsedSeconds: number;
   firstProject?: BootstrapData['projects'][number];
   isSaving: boolean;
@@ -856,12 +944,21 @@ function QuickLogPanel({
   manualMinutes: string;
   mode: SessionMode;
   onModeChange: (mode: SessionMode) => void;
+  onDraftChange: (patch: Partial<QuickLogDraft>) => void;
   onMinutesChange: (minutes: string) => void;
   onResetTimer: () => void;
   onStartTimer: () => void;
   onStopTimer: () => void;
   onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }) {
+  const selectedProjectId = draft.projectId || firstProject?.id || '';
+
+  function handleTechnologyChange(technologyId: string, checked: boolean) {
+    onDraftChange({
+      technologyIds: checked ? [...draft.technologyIds, technologyId] : draft.technologyIds.filter((id) => id !== technologyId),
+    });
+  }
+
   return (
     <article id="sessions" className="panel log-panel">
       <div className="panel-heading">
@@ -870,10 +967,10 @@ function QuickLogPanel({
           <h2>Add a session</h2>
         </div>
         <div className="segmented" aria-label="Session type">
-          <button className={mode === 'CODING' ? 'selected' : ''} onClick={() => onModeChange('CODING')}>
+          <button type="button" className={mode === 'CODING' ? 'selected' : ''} onClick={() => onModeChange('CODING')}>
             <Code2 size={16} /> Code
           </button>
-          <button className={mode === 'LEARNING' ? 'selected' : ''} onClick={() => onModeChange('LEARNING')}>
+          <button type="button" className={mode === 'LEARNING' ? 'selected' : ''} onClick={() => onModeChange('LEARNING')}>
             <BookOpen size={16} /> Learn
           </button>
         </div>
@@ -916,19 +1013,19 @@ function QuickLogPanel({
           <input name="minutes" type="number" min="5" max="1440" value={manualMinutes} onChange={(event) => onMinutesChange(event.target.value)} required />
         </label>
 
-        <details className="optional-details">
+        <details className="optional-details" open={draft.detailsOpen} onToggle={(event) => onDraftChange({ detailsOpen: event.currentTarget.open })}>
           <summary>Details</summary>
           <div className="details-fields">
             <label>
               <span>{mode === 'CODING' ? 'Session title' : 'Topic'}</span>
-              <input key={mode} name="title" defaultValue={mode === 'CODING' ? 'Coding session' : 'Learning session'} required />
+              <input name="title" value={draft.title} onChange={(event) => onDraftChange({ title: event.target.value })} required />
             </label>
 
             <div className="form-row">
               {mode === 'CODING' ? (
                 <label>
                   <span>Project</span>
-                  <select name="projectId" defaultValue={firstProject?.id}>
+                  <select name="projectId" value={selectedProjectId} onChange={(event) => onDraftChange({ projectId: event.target.value })}>
                     {bootstrap.projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
@@ -939,7 +1036,7 @@ function QuickLogPanel({
               ) : (
                 <label>
                   <span>Source</span>
-                  <input name="source" defaultValue="Docs and practice" />
+                  <input name="source" value={draft.source} onChange={(event) => onDraftChange({ source: event.target.value })} />
                 </label>
               )}
             </div>
@@ -949,7 +1046,13 @@ function QuickLogPanel({
               <div className="tech-picker">
                 {bootstrap.technologies.map((technology) => (
                   <label key={technology.id} style={{ borderColor: technology.color }}>
-                    <input type="checkbox" name="technologyIds" value={technology.id}  />
+                    <input
+                      type="checkbox"
+                      name="technologyIds"
+                      value={technology.id}
+                      checked={draft.technologyIds.includes(technology.id)}
+                      onChange={(event) => handleTechnologyChange(technology.id, event.target.checked)}
+                    />
                     {technology.name}
                   </label>
                 ))}
@@ -958,7 +1061,13 @@ function QuickLogPanel({
 
             <label>
               <span>Notes</span>
-              <textarea name="notes" rows={3} placeholder="What moved forward? What felt sticky?" />
+              <textarea
+                name="notes"
+                rows={3}
+                placeholder="What moved forward? What felt sticky?"
+                value={draft.notes}
+                onChange={(event) => onDraftChange({ notes: event.target.value })}
+              />
             </label>
           </div>
         </details>
