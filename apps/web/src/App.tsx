@@ -163,6 +163,10 @@ export function App() {
     );
   }
 
+  const todayCodingHours = dashboard.stats.codingHoursToday ?? 0;
+  const todayLearningHours = dashboard.stats.learningHoursToday ?? 0;
+  const todayTotalHours = dashboard.stats.totalHoursToday ?? todayCodingHours + todayLearningHours;
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="CodeTrail navigation">
@@ -205,16 +209,16 @@ export function App() {
         <section className="today-summary" aria-label="Today summary">
           <div>
             <p className="eyebrow">Total today</p>
-            <strong>{dashboard.stats.totalHoursToday}h</strong>
+            <strong>{formatHours(todayTotalHours)}h</strong>
           </div>
           <dl>
             <div>
               <dt>Coding</dt>
-              <dd>{dashboard.stats.codingHoursToday}h</dd>
+              <dd>{formatHours(todayCodingHours)}h</dd>
             </div>
             <div>
               <dt>Learning</dt>
-              <dd>{dashboard.stats.learningHoursToday}h</dd>
+              <dd>{formatHours(todayLearningHours)}h</dd>
             </div>
           </dl>
         </section>
@@ -467,6 +471,10 @@ function formatDuration(totalSeconds: number) {
   const seconds = totalSeconds % 60;
 
   return [hours, minutes, seconds].map((unit) => String(unit).padStart(2, '0')).join(':');
+}
+
+function formatHours(hours: number) {
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
 function ChartSurface({
