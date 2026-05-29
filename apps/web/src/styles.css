@@ -366,43 +366,6 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
-.history-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.history-row {
-  display: grid;
-  grid-template-columns: minmax(105px, 1.2fr) repeat(3, minmax(74px, 1fr));
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 8px;
-  background: #f7f9fc;
-}
-
-.history-row time {
-  color: #18202f;
-  font-weight: 900;
-}
-
-.history-row div {
-  display: grid;
-  gap: 3px;
-}
-
-.history-row span {
-  color: #5f6f85;
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.history-row strong {
-  font-size: 1.05rem;
-}
-
 .empty-history {
   margin: 18px 0 0;
   padding: 16px;
@@ -888,14 +851,6 @@ fieldset {
 
   .range-tabs button {
     flex: 1;
-  }
-
-  .history-row {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .history-row time {
-    grid-column: 1 / -1;
   }
 
   .history-summary {

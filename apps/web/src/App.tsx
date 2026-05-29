@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
-import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 import { BookOpen, Brain, CalendarCheck, Code2, Flame, Goal, Loader2, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
 import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard, updateSession } from './api';
 import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
@@ -134,7 +134,6 @@ export function App() {
   }, [pendingDelete, pendingEdit]);
 
   const firstProject = bootstrap?.projects[0];
-  const firstTechnology = bootstrap?.technologies[0];
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -448,7 +447,6 @@ export function App() {
             bootstrap={bootstrap}
             elapsedSeconds={elapsedSeconds}
             firstProject={firstProject}
-            firstTechnology={firstTechnology}
             isSaving={isSaving}
             isTimerRunning={isTimerRunning}
             manualMinutes={manualMinutes}
@@ -489,9 +487,9 @@ export function App() {
                 ))}
               </div>
             </div>
-            <DailyHistory
+            <RangeChart
+              chart={dashboard.chart}
               codingHours={dashboard.stats.rangeCodingHours}
-              history={dashboard.history}
               learningHours={dashboard.stats.rangeLearningHours}
               totalHours={dashboard.stats.rangeTotalHours}
             />
@@ -750,22 +748,14 @@ function updateTechnologyFocus(
   return [...technologies.values()].sort((a, b) => b.minutes - a.minutes).slice(0, 6);
 }
 
-function formatHistoryDate(date: string) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: 'numeric',
-    month: 'short',
-    weekday: 'short',
-  }).format(new Date(`${date}T00:00:00`));
-}
-
-function DailyHistory({
+function RangeChart({
+  chart,
   codingHours,
-  history,
   learningHours,
   totalHours,
 }: {
+  chart: DashboardData['chart'];
   codingHours: number;
-  history: DashboardData['history'];
   learningHours: number;
   totalHours: number;
 }) {
@@ -786,28 +776,20 @@ function DailyHistory({
         </div>
       </dl>
 
-      {history.length === 0 ? (
+      {chart.length === 0 ? (
         <p className="empty-history">No sessions logged for this range yet.</p>
       ) : (
-        <div className="history-list">
-          {history.map((day) => (
-            <article className="history-row" key={day.date}>
-              <time dateTime={day.date}>{formatHistoryDate(day.date)}</time>
-              <div>
-                <span>Total</span>
-                <strong>{formatHours(day.totalHours)}h</strong>
-              </div>
-              <div>
-                <span>Coding</span>
-                <strong>{formatHours(day.codingHours)}h</strong>
-              </div>
-              <div>
-                <span>Learning</span>
-                <strong>{formatHours(day.learningHours)}h</strong>
-              </div>
-            </article>
-          ))}
-        </div>
+        <ChartSurface height={290}>
+          {({ width, height }) => (
+            <AreaChart width={width} height={height} data={chart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#d7dde8" />
+              <XAxis dataKey="date" tickFormatter={(date) => date.slice(5)} tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={32} />
+              <Tooltip />
+              <Area type="monotone" dataKey="hours" stroke="#2f80ed" fill="#b9d7ff" strokeWidth={2} />
+            </AreaChart>
+          )}
+        </ChartSurface>
       )}
     </>
   );
@@ -855,7 +837,6 @@ function QuickLogPanel({
   bootstrap,
   elapsedSeconds,
   firstProject,
-  firstTechnology,
   isSaving,
   isTimerRunning,
   manualMinutes,
@@ -870,7 +851,6 @@ function QuickLogPanel({
   bootstrap: BootstrapData;
   elapsedSeconds: number;
   firstProject?: BootstrapData['projects'][number];
-  firstTechnology?: BootstrapData['technologies'][number];
   isSaving: boolean;
   isTimerRunning: boolean;
   manualMinutes: string;
@@ -969,7 +949,7 @@ function QuickLogPanel({
               <div className="tech-picker">
                 {bootstrap.technologies.map((technology) => (
                   <label key={technology.id} style={{ borderColor: technology.color }}>
-                    <input type="checkbox" name="technologyIds" value={technology.id} defaultChecked={technology.id === firstTechnology?.id} />
+                    <input type="checkbox" name="technologyIds" value={technology.id}  />
                     {technology.name}
                   </label>
                 ))}
