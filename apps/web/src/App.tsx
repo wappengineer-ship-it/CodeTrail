@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
-import { ApiError, createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadCurrentUser, loadDashboard, login, loginDemo, logout, register, updateSession } from './api';
-import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
+import { BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Settings, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
+import {
+  ApiError,
+  createSession,
+  createTechnology,
+  deleteSession,
+  deleteTechnology,
+  generateWeeklySummary,
+  loadBootstrap,
+  loadCurrentUser,
+  loadDashboard,
+  login,
+  loginDemo,
+  logout,
+  register,
+  updateSession,
+  updateTechnology,
+} from './api';
+import type { BootstrapData, CodingSession, DashboardData, LearningSession, Technology } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
 type DashboardRange = 'today' | 'week' | 'month' | 'all';
 type AuthMode = 'login' | 'register';
+type TechnologyForm = Pick<Technology, 'category' | 'color' | 'name'>;
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
 const QUICK_LOG_STORAGE_KEY = 'codetrail.quick-log.v1';
 const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
@@ -65,6 +82,11 @@ const defaultQuickLogDrafts: Record<SessionMode, QuickLogDraft> = {
   CODING: defaultWorkDraft,
   LEARNING: defaultLearningDraft,
 };
+const defaultTechnologyForm: TechnologyForm = {
+  category: 'Frontend',
+  color: '#2f80ed',
+  name: '',
+};
 
 export function App() {
   const [storedQuickLog] = useState(readStoredQuickLog);
@@ -97,6 +119,11 @@ export function App() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [manualMinutes, setManualMinutes] = useState('60');
   const [summary, setSummary] = useState('');
+  const [technologyForm, setTechnologyForm] = useState<TechnologyForm>(defaultTechnologyForm);
+  const [editingTechnologyId, setEditingTechnologyId] = useState<string | null>(null);
+  const [isTechnologySaving, setIsTechnologySaving] = useState(false);
+  const [deletingTechnologyId, setDeletingTechnologyId] = useState<string | null>(null);
+  const [technologyMessage, setTechnologyMessage] = useState('');
   const timerStartedAt = useRef<number | null>(null);
   const elapsedBeforeStart = useRef(0);
 
@@ -480,6 +507,60 @@ export function App() {
     setSummary('');
   }
 
+  function startEditingTechnology(technology: Technology) {
+    setEditingTechnologyId(technology.id);
+    setTechnologyForm({
+      category: technology.category,
+      color: technology.color,
+      name: technology.name,
+    });
+    setTechnologyMessage('');
+  }
+
+  function resetTechnologyForm() {
+    setEditingTechnologyId(null);
+    setTechnologyForm(defaultTechnologyForm);
+  }
+
+  async function handleTechnologySubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTechnologyMessage('');
+    setIsTechnologySaving(true);
+
+    try {
+      if (editingTechnologyId) {
+        await updateTechnology(editingTechnologyId, technologyForm);
+      } else {
+        await createTechnology(technologyForm);
+      }
+      resetTechnologyForm();
+      await refresh();
+    } catch (error) {
+      setTechnologyMessage(error instanceof ApiError && error.status === 409 ? 'That technology already exists.' : 'Could not save this technology.');
+    } finally {
+      setIsTechnologySaving(false);
+    }
+  }
+
+  async function handleDeleteTechnology(technology: Technology) {
+    setTechnologyMessage('');
+    setDeletingTechnologyId(technology.id);
+
+    try {
+      await deleteTechnology(technology.id);
+      if (editingTechnologyId === technology.id) resetTechnologyForm();
+      await refresh();
+    } catch (error) {
+      setTechnologyMessage(
+        error instanceof ApiError && error.status === 409
+          ? 'That technology is already used by projects or sessions, so it cannot be deleted yet.'
+          : 'Could not delete this technology.',
+      );
+    } finally {
+      setDeletingTechnologyId(null);
+    }
+  }
+
   const recentActivity = useMemo(() => {
     if (!bootstrap) return [];
     return [
@@ -564,6 +645,9 @@ export function App() {
           </a>
           <a href="#insights">
             <Brain size={18} /> Insights
+          </a>
+          <a href="#settings">
+            <Settings size={18} /> Settings
           </a>
         </nav>
       </aside>
@@ -781,6 +865,82 @@ export function App() {
                 </li>
               ))}
             </ul>
+          </article>
+
+          <article id="settings" className="panel settings-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Settings</p>
+                <h2>Technologies</h2>
+              </div>
+            </div>
+
+            <form className="technology-form" onSubmit={handleTechnologySubmit}>
+              <label>
+                <span>Name</span>
+                <input
+                  name="name"
+                  value={technologyForm.name}
+                  onChange={(event) => setTechnologyForm((form) => ({ ...form, name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Category</span>
+                <input
+                  name="category"
+                  value={technologyForm.category}
+                  onChange={(event) => setTechnologyForm((form) => ({ ...form, category: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Color</span>
+                <input
+                  name="color"
+                  type="color"
+                  value={technologyForm.color}
+                  onChange={(event) => setTechnologyForm((form) => ({ ...form, color: event.target.value }))}
+                  required
+                />
+              </label>
+              <button type="submit" className="primary-button" disabled={isTechnologySaving}>
+                {isTechnologySaving ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+                {editingTechnologyId ? 'Save technology' : 'Add technology'}
+              </button>
+              {editingTechnologyId && (
+                <button type="button" className="secondary-button" onClick={resetTechnologyForm}>
+                  Cancel
+                </button>
+              )}
+            </form>
+
+            {technologyMessage && <p className="settings-message">{technologyMessage}</p>}
+
+            <div className="technology-list">
+              {bootstrap.technologies.map((technology) => (
+                <div className="technology-row" key={technology.id}>
+                  <span className="technology-swatch" style={{ background: technology.color }} />
+                  <div>
+                    <strong>{technology.name}</strong>
+                    <span>{technology.category}</span>
+                  </div>
+                  <button type="button" className="edit-activity" onClick={() => startEditingTechnology(technology)} title="Edit technology" aria-label={`Edit ${technology.name}`}>
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    className="delete-activity"
+                    onClick={() => handleDeleteTechnology(technology)}
+                    disabled={deletingTechnologyId === technology.id}
+                    title="Delete technology"
+                    aria-label={`Delete ${technology.name}`}
+                  >
+                    {deletingTechnologyId === technology.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                  </button>
+                </div>
+              ))}
+            </div>
           </article>
         </section>
       </section>

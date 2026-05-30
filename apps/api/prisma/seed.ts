@@ -33,9 +33,9 @@ async function main() {
   const techRecords = await Promise.all(
     technologies.map((technology) =>
       prisma.technology.upsert({
-        where: { name: technology.name },
+        where: { userId_name: { userId: user.id, name: technology.name } },
         update: technology,
-        create: technology,
+        create: { ...technology, userId: user.id },
       }),
     ),
   );

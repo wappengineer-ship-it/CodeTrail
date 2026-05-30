@@ -1,0 +1,43 @@
+Proper auth is basically this flow:
+
+Register
+User sends name, email, password.
+
+Validate input
+Check email format, password length, name length, duplicate email.
+
+Hash password
+Never store the raw password.
+Store a salted hash like:
+
+password -> hash -> save hash
+
+Login
+User sends email + password.
+
+Verify password
+Hash the entered password using the stored salt, compare it with the saved hash.
+
+Create session
+Server creates a random token, stores a hashed version in the database, and sends the raw token to the browser in a cookie.
+
+Set secure cookie
+Cookie should be:
+
+httpOnly: JavaScript cannot read it
+secure: HTTPS only in production
+sameSite: helps reduce cross-site attacks
+expires after a set time
+Protect routes
+For every private API route:
+
+read session cookie
+hash the token
+find matching session in DB
+check it has not expired
+attach current user to the request
+Use current user
+Every query filters by userId, so users only see their own data.
+
+Logout
+Delete the session from the database and clear the cookie.

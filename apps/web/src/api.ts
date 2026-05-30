@@ -90,6 +90,24 @@ export async function updateSession(type: 'CODING' | 'LEARNING', id: string, pay
   });
 }
 
+export async function createTechnology(payload: { category: string; color: string; name: string }) {
+  return request<BootstrapData['technologies'][number]>('/technologies', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateTechnology(id: string, payload: { category: string; color: string; name: string }) {
+  return request<BootstrapData['technologies'][number]>(`/technologies/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteTechnology(id: string) {
+  return request<void>(`/technologies/${id}`, { method: 'DELETE' });
+}
+
 export async function generateWeeklySummary() {
   return request<{ content: string }>('/summaries/weekly', { method: 'POST' });
 }

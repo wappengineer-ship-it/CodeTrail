@@ -413,6 +413,10 @@ h2 {
   min-height: 370px;
 }
 
+.settings-panel {
+  grid-column: 1 / -1;
+}
+
 .history-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -685,6 +689,78 @@ fieldset {
   width: auto;
 }
 
+.technology-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.7fr) 92px auto auto;
+  gap: 12px;
+  margin-top: 16px;
+  align-items: end;
+}
+
+.technology-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.technology-form label span {
+  color: #5f6f85;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.technology-form input {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid #ccd5e3;
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.technology-form input[type='color'] {
+  padding: 4px;
+}
+
+.settings-message {
+  margin: 14px 0 0;
+  color: #a03b2e;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.technology-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.technology-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.technology-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.technology-row strong,
+.technology-row span {
+  display: block;
+}
+
+.technology-row div span {
+  margin-top: 2px;
+  color: #5f6f85;
+  font-size: 0.84rem;
+}
+
 .primary-button {
   width: 100%;
 }
@@ -921,7 +997,7 @@ fieldset {
   }
 
   nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .stats-grid {
@@ -949,6 +1025,10 @@ fieldset {
   }
 
   .main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .technology-form {
     grid-template-columns: 1fr;
   }
 }

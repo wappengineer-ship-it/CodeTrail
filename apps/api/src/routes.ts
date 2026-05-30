@@ -1,7 +1,17 @@
 import { Router } from 'express';
 import { prisma } from './prisma.js';
 import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
-import { authSchema, goalCreateSchema, projectCreateSchema, registerSchema, sessionCreateSchema, sessionDeleteSchema, sessionUpdateSchema } from './validators.js';
+import {
+  authSchema,
+  goalCreateSchema,
+  projectCreateSchema,
+  registerSchema,
+  sessionCreateSchema,
+  sessionDeleteSchema,
+  sessionUpdateSchema,
+  technologyCreateSchema,
+  technologyUpdateSchema,
+} from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
 import {
@@ -135,6 +145,24 @@ function buildDayKeys(startDate: Date, endDate = new Date()) {
   return days;
 }
 
+async function validateTechnologyIds(userId: string, technologyIds: string[]) {
+  const uniqueTechnologyIds = [...new Set(technologyIds)];
+  if (uniqueTechnologyIds.length === 0) return [];
+
+  const count = await prisma.technology.count({
+    where: {
+      id: { in: uniqueTechnologyIds },
+      userId,
+    },
+  });
+
+  if (count !== uniqueTechnologyIds.length) {
+    throw new Error('Invalid technology selection');
+  }
+
+  return uniqueTechnologyIds;
+}
+
 async function advanceHourGoals(input: { minutes: number; userId: string }) {
   const hours = toHours(input.minutes);
   if (hours <= 0) return;
@@ -161,7 +189,7 @@ router.get('/bootstrap', async (req, res, next) => {
   try {
     const user = getCurrentUser(req);
     const [technologies, projects, goals, recentCoding, recentLearning] = await Promise.all([
-      prisma.technology.findMany({ orderBy: { name: 'asc' } }),
+      prisma.technology.findMany({ where: { userId: user.id }, orderBy: { name: 'asc' } }),
       prisma.project.findMany({
         where: { userId: user.id },
         include: { technologies: { include: { technology: true } } },
@@ -385,10 +413,98 @@ router.get('/dashboard', async (req, res, next) => {
   }
 });
 
+router.get('/technologies', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const technologies = await prisma.technology.findMany({
+      where: { userId: user.id },
+      orderBy: { name: 'asc' },
+    });
+    res.json(technologies);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/technologies', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const input = technologyCreateSchema.parse(req.body);
+    const existing = await prisma.technology.findUnique({
+      where: { userId_name: { userId: user.id, name: input.name } },
+    });
+    if (existing) {
+      res.status(409).json({ error: 'Technology already exists' });
+      return;
+    }
+
+    const technology = await prisma.technology.create({
+      data: {
+        userId: user.id,
+        name: input.name,
+        category: input.category,
+        color: input.color,
+      },
+    });
+    res.status(201).json(technology);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/technologies/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const input = technologyUpdateSchema.parse({ ...req.body, id: req.params.id });
+    const existing = await prisma.technology.findUnique({
+      where: { userId_name: { userId: user.id, name: input.name } },
+    });
+    if (existing && existing.id !== input.id) {
+      res.status(409).json({ error: 'Technology already exists' });
+      return;
+    }
+
+    const technology = await prisma.technology.update({
+      where: { id: input.id, userId: user.id },
+      data: {
+        name: input.name,
+        category: input.category,
+        color: input.color,
+      },
+    });
+    res.json(technology);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/technologies/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const id = String(req.params.id);
+    const usageCount = await Promise.all([
+      prisma.projectTechnology.count({ where: { technologyId: id, project: { userId: user.id } } }),
+      prisma.codingSessionTechnology.count({ where: { technologyId: id, codingSession: { userId: user.id } } }),
+      prisma.learningSessionTechnology.count({ where: { technologyId: id, learningSession: { userId: user.id } } }),
+    ]);
+
+    if (usageCount.some((count) => count > 0)) {
+      res.status(409).json({ error: 'Technology is already used by projects or sessions' });
+      return;
+    }
+
+    await prisma.technology.delete({ where: { id, userId: user.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/sessions', async (req, res, next) => {
   try {
     const user = getCurrentUser(req);
     const input = sessionCreateSchema.parse(req.body);
+    const technologyIds = await validateTechnologyIds(user.id, input.technologyIds);
     const sessionDate = input.sessionDate ? new Date(input.sessionDate) : new Date();
 
     if (input.type === 'CODING') {
@@ -402,7 +518,7 @@ router.post('/sessions', async (req, res, next) => {
           focusScore: input.focusScore ?? 3,
           sessionDate,
           technologies: {
-            create: input.technologyIds.map((technologyId) => ({
+            create: technologyIds.map((technologyId) => ({
               technologyId,
             })),
           },
@@ -427,7 +543,7 @@ router.post('/sessions', async (req, res, next) => {
         confidence: input.confidence ?? 3,
         sessionDate,
         technologies: {
-          create: input.technologyIds.map((technologyId) => ({ technologyId })),
+          create: technologyIds.map((technologyId) => ({ technologyId })),
         },
       },
       include: { technologies: { include: { technology: true } } },
@@ -504,6 +620,7 @@ router.post('/projects', async (req, res, next) => {
   try {
     const user = getCurrentUser(req);
     const input = projectCreateSchema.parse(req.body);
+    const technologyIds = await validateTechnologyIds(user.id, input.technologyIds);
     const project = await prisma.project.create({
       data: {
         userId: user.id,
@@ -514,7 +631,7 @@ router.post('/projects', async (req, res, next) => {
         liveUrl: input.liveUrl || undefined,
         startedAt: input.startedAt ? new Date(input.startedAt) : new Date(),
         technologies: {
-          create: input.technologyIds.map((technologyId) => ({ technologyId })),
+          create: technologyIds.map((technologyId) => ({ technologyId })),
         },
       },
       include: { technologies: { include: { technology: true } } },

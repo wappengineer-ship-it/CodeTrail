@@ -39,6 +39,7 @@ model User {
   goals            Goal[]
   weeklySummaries  WeeklySummary[]
   authSessions     AuthSession[]
+  technologies     Technology[]
 }
 
 model AuthSession {
@@ -52,13 +53,17 @@ model AuthSession {
 
 model Technology {
   id               String            @id @default(cuid())
-  name             String            @unique
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
   category         String
   color            String
   createdAt        DateTime          @default(now())
   projects         ProjectTechnology[]
   codingSessions   CodingSessionTechnology[]
   learningSessions LearningSessionTechnology[]
+
+  @@unique([userId, name])
 }
 
 model Project {

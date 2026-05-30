@@ -9,6 +9,16 @@ export const registerSchema = authSchema.extend({
   name: z.string().min(2).max(80),
 });
 
+export const technologyCreateSchema = z.object({
+  name: z.string().min(1).max(80),
+  category: z.string().min(1).max(80),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+
+export const technologyUpdateSchema = technologyCreateSchema.extend({
+  id: z.string().min(1),
+});
+
 export const sessionCreateSchema = z.object({
   type: z.enum(['CODING', 'LEARNING']),
   title: z.string().min(2).max(120),
