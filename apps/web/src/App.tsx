@@ -1778,6 +1778,15 @@ function QuickLogPanel({
     });
   }
 
+  function handleProjectChange(projectId: string) {
+    const project = bootstrap.projects.find((item) => item.id === projectId);
+
+    onDraftChange({
+      projectId,
+      technologyIds: project?.technologies.map(({ technology }) => technology.id) ?? [],
+    });
+  }
+
   return (
     <article id="sessions" className="panel log-panel">
       <div className="panel-heading">
@@ -1844,7 +1853,7 @@ function QuickLogPanel({
               {mode === 'CODING' ? (
                 <label>
                   <span>Project</span>
-                  <select name="projectId" value={selectedProjectId} onChange={(event) => onDraftChange({ projectId: event.target.value })}>
+                  <select name="projectId" value={selectedProjectId} onChange={(event) => handleProjectChange(event.target.value)}>
                     {bootstrap.projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
