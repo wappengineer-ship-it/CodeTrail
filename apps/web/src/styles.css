@@ -709,6 +709,30 @@ h2 {
   padding: 12px;
 }
 
+.title-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -6px;
+}
+
+.title-suggestions button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #d8e1ee;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #46566b;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.title-suggestions button:hover {
+  border-color: #9eb2ca;
+  background: #eef4ff;
+  color: #18202f;
+}
+
 label,
 fieldset {
   display: grid;

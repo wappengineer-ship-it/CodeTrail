@@ -53,6 +53,8 @@ type GoalForm = {
 };
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
 const QUICK_LOG_STORAGE_KEY = 'codetrail.quick-log.v1';
+const WORK_TITLE_STORAGE_KEY = 'codetrail.work-titles.v1';
+const MAX_WORK_TITLES_PER_PROJECT = 8;
 const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
   { label: 'Today', value: 'today' },
   { label: 'Week', value: 'week' },
@@ -74,6 +76,7 @@ type QuickLogDraft = {
   mode: SessionMode;
   notes: string;
   projectId: string;
+  projectTitles: Record<string, string>;
   source: string;
   technologyIds: string[];
   title: string;
@@ -84,11 +87,14 @@ type StoredQuickLog = {
   mode: SessionMode;
 };
 
+type StoredWorkTitles = Record<string, string[]>;
+
 const defaultWorkDraft: QuickLogDraft = {
   detailsOpen: false,
   mode: 'CODING',
   notes: '',
   projectId: '',
+  projectTitles: {},
   source: 'Docs and practice',
   technologyIds: [],
   title: 'Work session',
@@ -99,6 +105,7 @@ const defaultLearningDraft: QuickLogDraft = {
   mode: 'LEARNING',
   notes: '',
   projectId: '',
+  projectTitles: {},
   source: 'Docs and practice',
   technologyIds: [],
   title: 'Learning session',
@@ -137,6 +144,7 @@ const rateLimitMessage = 'Too many attempts. Please wait a bit and try again.';
 
 export function App() {
   const [storedQuickLog] = useState(readStoredQuickLog);
+  const [workTitlesByProject, setWorkTitlesByProject] = useState<StoredWorkTitles>(readStoredWorkTitles);
   const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'guest'>('checking');
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [authError, setAuthError] = useState('');
@@ -286,6 +294,10 @@ export function App() {
   }, [mode, quickLogDrafts]);
 
   useEffect(() => {
+    writeStoredWorkTitles(workTitlesByProject);
+  }, [workTitlesByProject]);
+
+  useEffect(() => {
     if (!pendingDelete && !pendingEdit) return;
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -334,6 +346,10 @@ export function App() {
     const notes = String(form.get('notes') ?? '');
     const projectId = String(form.get('projectId') ?? '');
     const source = String(form.get('source') ?? '');
+
+    if (mode === 'CODING' && projectId) {
+      setWorkTitlesByProject((titles) => addWorkTitle(titles, projectId, title));
+    }
 
     if (isTimerRunning) {
       stopTimer();
@@ -942,6 +958,7 @@ export function App() {
             isTimerRunning={isTimerRunning}
             manualMinutes={manualMinutes}
             mode={mode}
+            workTitlesByProject={workTitlesByProject}
             onDraftChange={updateQuickLogDraft}
             onModeChange={handleModeChange}
             onResetTimer={resetTimer}
@@ -1715,10 +1732,21 @@ function normalizeQuickLogDraft(draft: Partial<QuickLogDraft> | undefined, mode:
     mode,
     notes: String(draft?.notes ?? defaults.notes),
     projectId: String(draft?.projectId ?? defaults.projectId),
+    projectTitles: normalizeProjectTitles(draft?.projectTitles),
     source: String(draft?.source ?? defaults.source),
     technologyIds: Array.isArray(draft?.technologyIds) ? draft.technologyIds.map(String) : defaults.technologyIds,
     title: draft?.title === 'Coding session' ? 'Work session' : String(draft?.title ?? defaults.title),
   } satisfies QuickLogDraft;
+}
+
+function normalizeProjectTitles(projectTitles: unknown) {
+  if (!projectTitles || typeof projectTitles !== 'object' || Array.isArray(projectTitles)) return {};
+
+  return Object.fromEntries(
+    Object.entries(projectTitles)
+      .map(([projectId, title]) => [projectId, String(title).trim()])
+      .filter(([, title]) => title),
+  ) as Record<string, string>;
 }
 
 function writeStoredQuickLog(draft: StoredQuickLog) {
@@ -1737,6 +1765,55 @@ function removeStoredQuickLog() {
   }
 }
 
+function readStoredWorkTitles() {
+  try {
+    const rawTitles = window.localStorage.getItem(WORK_TITLE_STORAGE_KEY);
+    if (!rawTitles) return {};
+
+    const parsed = JSON.parse(rawTitles);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).map(([projectId, titles]) => [
+        projectId,
+        Array.isArray(titles) ? titles.map(String).map((title) => title.trim()).filter(Boolean).slice(0, MAX_WORK_TITLES_PER_PROJECT) : [],
+      ]),
+    ) as StoredWorkTitles;
+  } catch {
+    removeStoredWorkTitles();
+    return {};
+  }
+}
+
+function writeStoredWorkTitles(titles: StoredWorkTitles) {
+  try {
+    window.localStorage.setItem(WORK_TITLE_STORAGE_KEY, JSON.stringify(titles));
+  } catch {
+    // Recent title suggestions are helpful, but logging should not depend on them.
+  }
+}
+
+function removeStoredWorkTitles() {
+  try {
+    window.localStorage.removeItem(WORK_TITLE_STORAGE_KEY);
+  } catch {
+    // Ignore storage failures; suggestions can rebuild as the app is used.
+  }
+}
+
+function addWorkTitle(titles: StoredWorkTitles, projectId: string, title: string) {
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle || trimmedTitle === defaultWorkDraft.title) return titles;
+
+  const currentTitles = titles[projectId] ?? [];
+  const nextTitles = [trimmedTitle, ...currentTitles.filter((item) => item.toLowerCase() !== trimmedTitle.toLowerCase())].slice(0, MAX_WORK_TITLES_PER_PROJECT);
+
+  return {
+    ...titles,
+    [projectId]: nextTitles,
+  };
+}
+
 function QuickLogPanel({
   bootstrap,
   draft,
@@ -1746,6 +1823,7 @@ function QuickLogPanel({
   isTimerRunning,
   manualMinutes,
   mode,
+  workTitlesByProject,
   onModeChange,
   onDraftChange,
   onMinutesChange,
@@ -1762,6 +1840,7 @@ function QuickLogPanel({
   isTimerRunning: boolean;
   manualMinutes: string;
   mode: SessionMode;
+  workTitlesByProject: StoredWorkTitles;
   onModeChange: (mode: SessionMode) => void;
   onDraftChange: (patch: Partial<QuickLogDraft>) => void;
   onMinutesChange: (minutes: string) => void;
@@ -1771,10 +1850,24 @@ function QuickLogPanel({
   onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
 }) {
   const selectedProjectId = draft.projectId || firstProject?.id || '';
+  const titleSuggestions = selectedProjectId ? workTitlesByProject[selectedProjectId] ?? [] : [];
 
   function handleTechnologyChange(technologyId: string, checked: boolean) {
     onDraftChange({
       technologyIds: checked ? [...draft.technologyIds, technologyId] : draft.technologyIds.filter((id) => id !== technologyId),
+    });
+  }
+
+  function handleTitleChange(title: string) {
+    onDraftChange({
+      title,
+      projectTitles:
+        mode === 'CODING' && selectedProjectId
+          ? {
+              ...draft.projectTitles,
+              [selectedProjectId]: title,
+            }
+          : draft.projectTitles,
     });
   }
 
@@ -1783,6 +1876,7 @@ function QuickLogPanel({
 
     onDraftChange({
       projectId,
+      title: draft.projectTitles[projectId] ?? defaultWorkDraft.title,
       technologyIds: project?.technologies.map(({ technology }) => technology.id) ?? [],
     });
   }
@@ -1846,8 +1940,17 @@ function QuickLogPanel({
           <div className="details-fields">
             <label>
               <span>{mode === 'CODING' ? 'Work title' : 'Topic'}</span>
-              <input name="title" value={draft.title} onChange={(event) => onDraftChange({ title: event.target.value })} required />
+              <input name="title" value={draft.title} onChange={(event) => handleTitleChange(event.target.value)} required />
             </label>
+            {mode === 'CODING' && titleSuggestions.length > 0 && (
+              <div className="title-suggestions" aria-label="Recent work titles">
+                {titleSuggestions.map((title) => (
+                  <button key={title} type="button" onClick={() => handleTitleChange(title)}>
+                    {title}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="form-row">
               {mode === 'CODING' ? (
