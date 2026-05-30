@@ -21,6 +21,7 @@ The app is built as a portfolio flagship project: a real product-shaped dashboar
 ## Highlights
 
 - Email/password authentication with HTTP-only session cookies
+- Rate-limited login, register, and demo auth routes
 - Demo sign-in for quick portfolio review
 - User-owned projects, technologies, sessions, goals, and summaries
 - Quick session logging for Work and Learning
@@ -30,7 +31,7 @@ The app is built as a portfolio flagship project: a real product-shaped dashboar
 - Daily totals chart and history view
 - Technology focus chart powered by tagged sessions
 - Settings page for adding, editing, and deleting technologies
-- AI weekly summary endpoint using OpenAI when `OPENAI_API_KEY` is configured
+- AI weekly summary endpoint using OpenAI when `OPENAI_API_KEY` is configured, with a deterministic fallback when no key or quota is available
 - Render blueprint for API, static web app, and PostgreSQL database
 
 ## Tech Stack
@@ -109,6 +110,12 @@ npm run db:deploy    # apply migrations in deploy-style environments
 npm run db:seed      # seed demo data
 ```
 
+## AI Summary Behavior
+
+Weekly summaries use the OpenAI API when `OPENAI_API_KEY` is configured and the account has available API quota. If no key is configured, or the API returns a quota/error response, CodeTrail falls back to a deterministic coaching summary built from the same progress data: total hours, work and learning split, streak, goal progress, top technologies, and recent sessions.
+
+This keeps the live demo usable without requiring paid API credits.
+
 ## Environment Variables
 
 API:
@@ -147,7 +154,7 @@ Deploy with Render Blueprint:
    - API service `CORS_ORIGIN`
    - Web service `VITE_API_URL`
 
-The API start command runs Prisma migrations and seeds the demo dataset. Add `OPENAI_API_KEY` to the API service to enable live AI weekly summaries.
+The API start command runs Prisma migrations and seeds the demo dataset. Add `OPENAI_API_KEY` to the API service to enable OpenAI-generated weekly summaries. Without API quota, the app uses the built-in fallback summary.
 
 ### Production Auth Note
 

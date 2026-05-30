@@ -14,6 +14,7 @@ import {
 } from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
+import { rateLimit } from './rateLimit.js';
 import {
   type AuthenticatedRequest,
   clearSessionCookie,
@@ -28,6 +29,8 @@ import {
 
 export const router = Router();
 const dashboardRanges = ['today', 'week', 'month', 'all'] as const;
+const authRateLimit = rateLimit({ limit: 5, windowMs: 15 * 60 * 1000 });
+const demoRateLimit = rateLimit({ limit: 20, windowMs: 15 * 60 * 1000 });
 type DashboardRange = (typeof dashboardRanges)[number];
 
 function getCurrentUser(req: Parameters<typeof requireAuth>[0]) {
@@ -42,7 +45,7 @@ router.get('/auth/me', requireAuth, (req, res) => {
   res.json({ user: getCurrentUser(req) });
 });
 
-router.post('/auth/register', async (req, res, next) => {
+router.post('/auth/register', authRateLimit, async (req, res, next) => {
   try {
     const input = registerSchema.parse(req.body);
     const existingUser = await prisma.user.findUnique({ where: { email: input.email } });
@@ -67,7 +70,7 @@ router.post('/auth/register', async (req, res, next) => {
   }
 });
 
-router.post('/auth/login', async (req, res, next) => {
+router.post('/auth/login', authRateLimit, async (req, res, next) => {
   try {
     const input = authSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: input.email } });
@@ -86,7 +89,7 @@ router.post('/auth/login', async (req, res, next) => {
   }
 });
 
-router.post('/auth/demo', async (_req, res, next) => {
+router.post('/auth/demo', demoRateLimit, async (_req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { email: 'demo@codetrail.dev' } });
     if (!user) {
