@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Settings, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
+import { ArrowUp, BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Settings, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
 import {
   ApiError,
   createSession,
@@ -124,6 +124,7 @@ export function App() {
   const [isTechnologySaving, setIsTechnologySaving] = useState(false);
   const [deletingTechnologyId, setDeletingTechnologyId] = useState<string | null>(null);
   const [technologyMessage, setTechnologyMessage] = useState('');
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const timerStartedAt = useRef<number | null>(null);
   const elapsedBeforeStart = useRef(0);
 
@@ -240,6 +241,16 @@ export function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pendingDelete, pendingEdit]);
+
+  useEffect(() => {
+    function handleScroll() {
+      setShowBackToTop(window.scrollY > 420);
+    }
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const firstProject = bootstrap?.projects[0];
   const quickLogDraft = quickLogDrafts[mode];
@@ -1008,6 +1019,18 @@ export function App() {
             </div>
           </form>
         </div>
+      )}
+
+      {showBackToTop && (
+        <button
+          type="button"
+          className="back-to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          title="Back to top"
+        >
+          <ArrowUp size={20} />
+        </button>
       )}
     </main>
   );
