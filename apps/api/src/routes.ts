@@ -686,15 +686,26 @@ router.post('/summaries/weekly', async (req, res, next) => {
     const user = getCurrentUser(req);
     const weekStart = startOfWeek();
 
-    const [coding, learning, goals] = await Promise.all([
+    const [coding, learning, goals, recentCoding, recentLearning] = await Promise.all([
       prisma.codingSession.findMany({
         where: { userId: user.id, sessionDate: { gte: weekStart } },
-        include: { project: true },
+        include: { project: true, technologies: { include: { technology: true } } },
+        orderBy: { sessionDate: 'desc' },
       }),
       prisma.learningSession.findMany({
         where: { userId: user.id, sessionDate: { gte: weekStart } },
+        include: { technologies: { include: { technology: true } } },
+        orderBy: { sessionDate: 'desc' },
       }),
-      prisma.goal.findMany({ where: { userId: user.id, status: 'ACTIVE' } }),
+      prisma.goal.findMany({ where: { userId: user.id, status: 'ACTIVE' }, orderBy: { dueDate: 'asc' } }),
+      prisma.codingSession.findMany({
+        where: { userId: user.id, sessionDate: { gte: daysAgo(45) } },
+        select: { minutes: true, sessionDate: true },
+      }),
+      prisma.learningSession.findMany({
+        where: { userId: user.id, sessionDate: { gte: daysAgo(45) } },
+        select: { minutes: true, sessionDate: true },
+      }),
     ]);
 
     const codingMinutes = coding.reduce((sum, session) => sum + session.minutes, 0);
@@ -703,16 +714,56 @@ router.post('/summaries/weekly', async (req, res, next) => {
     const learningHours = toHours(learningMinutes);
     const totalHours = toHours(codingMinutes + learningMinutes);
     const projectNames = [...new Set(coding.map((session) => session.project?.name).filter(Boolean))].join(', ') || 'independent practice';
+    const topTechnologies = summarizeTechnologies([
+      ...coding.map((session) => ({ minutes: session.minutes, technologies: session.technologies })),
+      ...learning.map((session) => ({ minutes: session.minutes, technologies: session.technologies })),
+    ]);
+    const recentSessions = [
+      ...coding.map((session) => ({
+        title: session.title,
+        type: 'Work',
+        hours: toHours(session.minutes),
+        date: session.sessionDate.toISOString().slice(0, 10),
+      })),
+      ...learning.map((session) => ({
+        title: session.topic,
+        type: 'Learning',
+        hours: toHours(session.minutes),
+        date: session.sessionDate.toISOString().slice(0, 10),
+      })),
+    ]
+      .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+      .slice(0, 6);
+    const streakDays = calculateStreak([...recentCoding, ...recentLearning]);
+    const goalProgress = goals.map((goal) => ({
+      title: goal.title,
+      current: goal.currentValue,
+      target: goal.targetValue,
+      unit: goal.unit,
+      percent: Math.min(100, Math.round((goal.currentValue / goal.targetValue) * 100)),
+    }));
 
-    let content = `This week you logged ${totalHours} total hours: ${codingHours} work hours and ${learningHours} learning hours. Your strongest project focus was ${projectNames}. Next week, protect one deep-work block, ship one visible project increment, and keep notes on every concept that still feels fuzzy.`;
+    let content = buildFallbackAiSummary({
+      codingHours,
+      goalProgress,
+      learningHours,
+      projectNames,
+      recentSessions,
+      streakDays,
+      topTechnologies,
+      totalHours,
+    });
 
     if (env.OPENAI_API_KEY) {
       content = await generateAiSummary({
         codingHours,
+        goalProgress,
         learningHours,
-        totalHours,
         projectNames,
-        goals: goals.map((goal) => goal.title),
+        recentSessions,
+        streakDays,
+        topTechnologies,
+        totalHours,
       });
     }
 
@@ -731,7 +782,72 @@ router.post('/summaries/weekly', async (req, res, next) => {
   }
 });
 
-async function generateAiSummary(input: { codingHours: number; learningHours: number; totalHours: number; projectNames: string; goals: string[] }) {
+type AiSummaryInput = {
+  codingHours: number;
+  goalProgress: { current: number; percent: number; target: number; title: string; unit: string }[];
+  learningHours: number;
+  projectNames: string;
+  recentSessions: { date: string; hours: number; title: string; type: string }[];
+  streakDays: number;
+  topTechnologies: { hours: number; name: string }[];
+  totalHours: number;
+};
+
+function summarizeTechnologies(
+  sessions: { minutes: number; technologies: { technology: { id: string; name: string } }[] }[],
+) {
+  const techMinutes = new Map<string, { minutes: number; name: string }>();
+
+  sessions.forEach((session) => {
+    session.technologies.forEach(({ technology }) => {
+      const current = techMinutes.get(technology.id) ?? { minutes: 0, name: technology.name };
+      current.minutes += session.minutes;
+      techMinutes.set(technology.id, current);
+    });
+  });
+
+  return [...techMinutes.values()]
+    .sort((a, b) => b.minutes - a.minutes)
+    .slice(0, 5)
+    .map((technology) => ({
+      name: technology.name,
+      hours: toHours(technology.minutes),
+    }));
+}
+
+function calculateStreak(sessions: { minutes: number; sessionDate: Date }[]) {
+  let streak = 0;
+  const days = new Map<string, number>();
+  buildDayKeys(daysAgo(44)).forEach((date) => days.set(date, 0));
+
+  sessions.forEach((session) => {
+    const key = session.sessionDate.toISOString().slice(0, 10);
+    days.set(key, (days.get(key) ?? 0) + session.minutes);
+  });
+
+  for (const minutes of [...days.values()].reverse()) {
+    if (minutes <= 0) break;
+    streak += 1;
+  }
+
+  return streak;
+}
+
+function buildFallbackAiSummary(input: AiSummaryInput) {
+  const topTechnology = input.topTechnologies[0]?.name ?? 'your core stack';
+  const activeGoal = input.goalProgress[0];
+  const goalSentence = activeGoal
+    ? `${activeGoal.title} is ${activeGoal.percent}% complete at ${activeGoal.current}/${activeGoal.target} ${activeGoal.unit}.`
+    : 'Set one small weekly goal to make next week easier to steer.';
+  const nextAction =
+    input.totalHours >= 10
+      ? 'Next, protect one recovery block and choose one visible project increment to ship.'
+      : 'Next, schedule one focused two-hour block and tag the technologies you use.';
+
+  return `This week you logged ${input.totalHours} total hours: ${input.codingHours} work and ${input.learningHours} learning. Your strongest signal is ${topTechnology}, with project focus on ${input.projectNames}. Your current streak is ${input.streakDays} day${input.streakDays === 1 ? '' : 's'}. ${goalSentence} ${nextAction}`;
+}
+
+async function generateAiSummary(input: AiSummaryInput) {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -743,7 +859,8 @@ async function generateAiSummary(input: { codingHours: number; learningHours: nu
       input: [
         {
           role: 'system',
-          content: 'Write concise weekly coaching summaries for self-taught developers. Be specific, encouraging, and practical.',
+          content:
+            'Write concise weekly coaching summaries for self-taught developers. Use the provided metrics. Mention total hours, one pattern, one goal or streak signal, and one practical next action. Keep it under 90 words.',
         },
         {
           role: 'user',
@@ -754,9 +871,9 @@ async function generateAiSummary(input: { codingHours: number; learningHours: nu
   });
 
   if (!response.ok) {
-    return `This week you logged ${input.totalHours} total hours: ${input.codingHours} work hours and ${input.learningHours} learning hours. Keep the next step small, visible, and shippable.`;
+    return buildFallbackAiSummary(input);
   }
 
   const json = (await response.json()) as { output_text?: string };
-  return json.output_text?.trim() || `This week you logged ${input.totalHours} total hours: ${input.codingHours} work hours and ${input.learningHours} learning hours.`;
+  return json.output_text?.trim() || buildFallbackAiSummary(input);
 }
