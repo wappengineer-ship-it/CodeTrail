@@ -1083,10 +1083,11 @@ export function App() {
               </div>
             </div>
 
-            <section className="settings-section">
-              <div className="settings-section-heading">
+            <details className="settings-section">
+              <summary className="settings-section-heading">
                 <h3>Projects</h3>
-              </div>
+                <span>{bootstrap.projects.length}</span>
+              </summary>
               <form className="settings-form project-form" onSubmit={handleProjectSubmit}>
                 <label>
                   <span>Name</span>
@@ -1161,12 +1162,13 @@ export function App() {
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
 
-            <section className="settings-section">
-              <div className="settings-section-heading">
+            <details className="settings-section">
+              <summary className="settings-section-heading">
                 <h3>Goals</h3>
-              </div>
+                <span>{bootstrap.goals.length}</span>
+              </summary>
               <form className="settings-form goal-form" onSubmit={handleGoalSubmit}>
                 <label className="wide-field">
                   <span>Title</span>
@@ -1256,79 +1258,80 @@ export function App() {
                   </div>
                 ))}
               </div>
-            </section>
+            </details>
 
-            <section className="settings-section">
-              <div className="settings-section-heading">
+            <details className="settings-section">
+              <summary className="settings-section-heading">
                 <h3>Technologies</h3>
-              </div>
-            <form className="technology-form" onSubmit={handleTechnologySubmit}>
-              <label>
-                <span>Name</span>
-                <input
-                  name="name"
-                  value={technologyForm.name}
-                  onChange={(event) => setTechnologyForm((form) => ({ ...form, name: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Category</span>
-                <input
-                  name="category"
-                  value={technologyForm.category}
-                  onChange={(event) => setTechnologyForm((form) => ({ ...form, category: event.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                <span>Color</span>
-                <input
-                  name="color"
-                  type="color"
-                  value={technologyForm.color}
-                  onChange={(event) => setTechnologyForm((form) => ({ ...form, color: event.target.value }))}
-                  required
-                />
-              </label>
-              <button type="submit" className="primary-button" disabled={isTechnologySaving}>
-                {isTechnologySaving ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
-                {editingTechnologyId ? 'Save technology' : 'Add technology'}
-              </button>
-              {editingTechnologyId && (
-                <button type="button" className="secondary-button" onClick={resetTechnologyForm}>
-                  Cancel
+                <span>{bootstrap.technologies.length}</span>
+              </summary>
+              <form className="technology-form" onSubmit={handleTechnologySubmit}>
+                <label>
+                  <span>Name</span>
+                  <input
+                    name="name"
+                    value={technologyForm.name}
+                    onChange={(event) => setTechnologyForm((form) => ({ ...form, name: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Category</span>
+                  <input
+                    name="category"
+                    value={technologyForm.category}
+                    onChange={(event) => setTechnologyForm((form) => ({ ...form, category: event.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Color</span>
+                  <input
+                    name="color"
+                    type="color"
+                    value={technologyForm.color}
+                    onChange={(event) => setTechnologyForm((form) => ({ ...form, color: event.target.value }))}
+                    required
+                  />
+                </label>
+                <button type="submit" className="primary-button" disabled={isTechnologySaving}>
+                  {isTechnologySaving ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+                  {editingTechnologyId ? 'Save technology' : 'Add technology'}
                 </button>
-              )}
-            </form>
+                {editingTechnologyId && (
+                  <button type="button" className="secondary-button" onClick={resetTechnologyForm}>
+                    Cancel
+                  </button>
+                )}
+              </form>
 
-            {technologyMessage && <p className="settings-message">{technologyMessage}</p>}
+              {technologyMessage && <p className="settings-message">{technologyMessage}</p>}
 
-            <div className="technology-list">
-              {bootstrap.technologies.map((technology) => (
-                <div className="technology-row" key={technology.id}>
-                  <span className="technology-swatch" style={{ background: technology.color }} />
-                  <div>
-                    <strong>{technology.name}</strong>
-                    <span>{technology.category}</span>
+              <div className="technology-list">
+                {bootstrap.technologies.map((technology) => (
+                  <div className="technology-row" key={technology.id}>
+                    <span className="technology-swatch" style={{ background: technology.color }} />
+                    <div>
+                      <strong>{technology.name}</strong>
+                      <span>{technology.category}</span>
+                    </div>
+                    <button type="button" className="edit-activity" onClick={() => startEditingTechnology(technology)} title="Edit technology" aria-label={`Edit ${technology.name}`}>
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="delete-activity"
+                      onClick={() => handleDeleteTechnology(technology)}
+                      disabled={deletingTechnologyId === technology.id}
+                      title="Delete technology"
+                      aria-label={`Delete ${technology.name}`}
+                    >
+                      {deletingTechnologyId === technology.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                    </button>
                   </div>
-                  <button type="button" className="edit-activity" onClick={() => startEditingTechnology(technology)} title="Edit technology" aria-label={`Edit ${technology.name}`}>
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    className="delete-activity"
-                    onClick={() => handleDeleteTechnology(technology)}
-                    disabled={deletingTechnologyId === technology.id}
-                    title="Delete technology"
-                    aria-label={`Delete ${technology.name}`}
-                  >
-                    {deletingTechnologyId === technology.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
-                  </button>
-                </div>
-              ))}
-            </div>
-            </section>
+                ))}
+              </div>
+            </details>
           </article>
         </section>
       </section>

@@ -448,9 +448,52 @@ h2 {
   border-top: 1px solid #dfe5ee;
 }
 
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-section-heading::-webkit-details-marker {
+  display: none;
+}
+
 .settings-section-heading h3 {
+  flex: 1;
   margin: 0;
   font-size: 0.98rem;
+}
+
+.settings-section-heading span {
+  display: inline-grid;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  place-items: center;
+  border: 1px solid #dfe5ee;
+  border-radius: 999px;
+  color: #5f6f85;
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-section-heading::after {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  color: #2f80ed;
+  content: "+";
+  font-weight: 900;
+}
+
+.settings-section[open] .settings-section-heading::after {
+  content: "-";
 }
 
 .history-summary {
