@@ -1,21 +1,108 @@
 import { Router } from 'express';
 import { prisma } from './prisma.js';
 import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
-import { goalCreateSchema, projectCreateSchema, sessionCreateSchema, sessionDeleteSchema, sessionUpdateSchema } from './validators.js';
+import { authSchema, goalCreateSchema, projectCreateSchema, registerSchema, sessionCreateSchema, sessionDeleteSchema, sessionUpdateSchema } from './validators.js';
 import { env } from './env.js';
 import { fallbackBootstrap, fallbackDashboard, fallbackWeeklySummary } from './fallbackData.js';
+import {
+  type AuthenticatedRequest,
+  clearSessionCookie,
+  createAuthSession,
+  destroyAuthSession,
+  hashPassword,
+  requireAuth,
+  setSessionCookie,
+  toPublicUser,
+  verifyPassword,
+} from './auth.js';
 
 export const router = Router();
 const dashboardRanges = ['today', 'week', 'month', 'all'] as const;
 type DashboardRange = (typeof dashboardRanges)[number];
 
-async function getDemoUser() {
-  return prisma.user.findFirstOrThrow({ orderBy: { createdAt: 'asc' } });
+function getCurrentUser(req: Parameters<typeof requireAuth>[0]) {
+  return (req as unknown as AuthenticatedRequest).user;
 }
 
 function isDevelopmentFallbackAllowed() {
   return env.NODE_ENV !== 'production';
 }
+
+router.get('/auth/me', requireAuth, (req, res) => {
+  res.json({ user: getCurrentUser(req) });
+});
+
+router.post('/auth/register', async (req, res, next) => {
+  try {
+    const input = registerSchema.parse(req.body);
+    const existingUser = await prisma.user.findUnique({ where: { email: input.email } });
+    if (existingUser) {
+      res.status(409).json({ error: 'An account with that email already exists' });
+      return;
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name: input.name,
+        email: input.email,
+        passwordHash: await hashPassword(input.password),
+        timezone: 'Africa/Johannesburg',
+      },
+    });
+    const token = await createAuthSession(user.id);
+    setSessionCookie(res, token);
+    res.status(201).json({ user: toPublicUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/auth/login', async (req, res, next) => {
+  try {
+    const input = authSchema.parse(req.body);
+    const user = await prisma.user.findUnique({ where: { email: input.email } });
+    const isValidPassword = await verifyPassword(input.password, user?.passwordHash ?? null);
+
+    if (!user || !isValidPassword) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const token = await createAuthSession(user.id);
+    setSessionCookie(res, token);
+    res.json({ user: toPublicUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/auth/demo', async (_req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { email: 'demo@codetrail.dev' } });
+    if (!user) {
+      res.status(404).json({ error: 'Demo account is not available yet' });
+      return;
+    }
+
+    const token = await createAuthSession(user.id);
+    setSessionCookie(res, token);
+    res.json({ user: toPublicUser(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/auth/logout', async (req, res, next) => {
+  try {
+    await destroyAuthSession(req);
+    clearSessionCookie(res);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.use(requireAuth);
 
 function startOfMonth(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -70,9 +157,9 @@ async function advanceHourGoals(input: { minutes: number; userId: string }) {
   );
 }
 
-router.get('/bootstrap', async (_req, res, next) => {
+router.get('/bootstrap', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const [technologies, projects, goals, recentCoding, recentLearning] = await Promise.all([
       prisma.technology.findMany({ orderBy: { name: 'asc' } }),
       prisma.project.findMany({
@@ -120,7 +207,7 @@ router.get('/bootstrap', async (_req, res, next) => {
 
 router.get('/dashboard', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const todayStart = startOfDay();
     const weekStart = startOfWeek();
     const monthStart = daysAgo(30);
@@ -300,7 +387,7 @@ router.get('/dashboard', async (req, res, next) => {
 
 router.post('/sessions', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const input = sessionCreateSchema.parse(req.body);
     const sessionDate = input.sessionDate ? new Date(input.sessionDate) : new Date();
 
@@ -362,7 +449,7 @@ router.post('/sessions', async (req, res, next) => {
 
 router.delete('/sessions/:type/:id', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const input = sessionDeleteSchema.parse({
       id: req.params.id,
       type: req.params.type,
@@ -387,7 +474,7 @@ router.delete('/sessions/:type/:id', async (req, res, next) => {
 
 router.patch('/sessions/:type/:id', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const input = sessionUpdateSchema.parse({
       ...req.body,
       id: req.params.id,
@@ -415,7 +502,7 @@ router.patch('/sessions/:type/:id', async (req, res, next) => {
 
 router.post('/projects', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const input = projectCreateSchema.parse(req.body);
     const project = await prisma.project.create({
       data: {
@@ -448,7 +535,7 @@ router.post('/projects', async (req, res, next) => {
 
 router.post('/goals', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const input = goalCreateSchema.parse(req.body);
     const goal = await prisma.goal.create({
       data: {
@@ -477,9 +564,9 @@ router.post('/goals', async (req, res, next) => {
   }
 });
 
-router.post('/summaries/weekly', async (_req, res, next) => {
+router.post('/summaries/weekly', async (req, res, next) => {
   try {
-    const user = await getDemoUser();
+    const user = getCurrentUser(req);
     const weekStart = startOfWeek();
 
     const [coding, learning, goals] = await Promise.all([

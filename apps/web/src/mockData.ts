@@ -19,6 +19,7 @@ export const mockBootstrap: BootstrapData = {
     id: 'demo',
     name: 'Self-Taught Developer',
     email: 'demo@codetrail.dev',
+    timezone: 'Africa/Johannesburg',
   },
   technologies,
   projects: [

@@ -29,6 +29,7 @@ model User {
   id               String            @id @default(cuid())
   name             String
   email            String            @unique
+  passwordHash     String?
   timezone         String            @default("Africa/Johannesburg")
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -37,6 +38,16 @@ model User {
   learningSessions LearningSession[]
   goals            Goal[]
   weeklySummaries  WeeklySummary[]
+  authSessions     AuthSession[]
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Technology {

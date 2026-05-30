@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, SubmitEvent } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
-import { BookOpen, Brain, Code2, Flame, Goal, Loader2, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
-import { createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadDashboard, updateSession } from './api';
+import { BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
+import { ApiError, createSession, deleteSession, generateWeeklySummary, loadBootstrap, loadCurrentUser, loadDashboard, login, loginDemo, logout, register, updateSession } from './api';
 import type { BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
 type DashboardRange = 'today' | 'week' | 'month' | 'all';
+type AuthMode = 'login' | 'register';
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
 const QUICK_LOG_STORAGE_KEY = 'codetrail.quick-log.v1';
 const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
@@ -67,6 +68,10 @@ const defaultQuickLogDrafts: Record<SessionMode, QuickLogDraft> = {
 
 export function App() {
   const [storedQuickLog] = useState(readStoredQuickLog);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'authenticated' | 'guest'>('checking');
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [authError, setAuthError] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [bootstrap, setBootstrap] = useState<BootstrapData | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
@@ -97,16 +102,44 @@ export function App() {
 
   const refresh = useCallback(
     async (range = dashboardRange) => {
-      const [bootstrapData, dashboardData] = await Promise.all([loadBootstrap(), loadDashboard(range)]);
-      setBootstrap(bootstrapData);
-      setDashboard(dashboardData);
+      try {
+        const [bootstrapData, dashboardData] = await Promise.all([loadBootstrap(), loadDashboard(range)]);
+        setBootstrap(bootstrapData);
+        setDashboard(dashboardData);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          setAuthStatus('guest');
+          setBootstrap(null);
+          setDashboard(null);
+        }
+      }
     },
     [dashboardRange],
   );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let isCurrent = true;
+
+    async function checkAuth() {
+      try {
+        await loadCurrentUser();
+        if (isCurrent) setAuthStatus('authenticated');
+      } catch {
+        if (isCurrent) setAuthStatus('guest');
+      }
+    }
+
+    checkAuth();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus === 'authenticated') {
+      refresh();
+    }
+  }, [authStatus, refresh]);
 
   useEffect(() => {
     const restoredTimer = readStoredTimer();
@@ -401,6 +434,52 @@ export function App() {
     }
   }
 
+  async function handleAuthSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthError('');
+    setIsAuthLoading(true);
+
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get('email') ?? '');
+    const password = String(form.get('password') ?? '');
+    const name = String(form.get('name') ?? '');
+
+    try {
+      if (authMode === 'register') {
+        await register({ email, name, password });
+      } else {
+        await login({ email, password });
+      }
+      setAuthStatus('authenticated');
+    } catch (error) {
+      setAuthError(error instanceof ApiError && error.status === 409 ? 'That email already has an account.' : 'Could not sign in. Check your details and try again.');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  async function handleDemoLogin() {
+    setAuthError('');
+    setIsAuthLoading(true);
+
+    try {
+      await loginDemo();
+      setAuthStatus('authenticated');
+    } catch {
+      setAuthError('The demo account is not ready yet. Try running the seed script.');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    setAuthStatus('guest');
+    setBootstrap(null);
+    setDashboard(null);
+    setSummary('');
+  }
+
   const recentActivity = useMemo(() => {
     if (!bootstrap) return [];
     return [
@@ -424,6 +503,28 @@ export function App() {
       .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
       .slice(0, 6);
   }, [bootstrap]);
+
+  if (authStatus === 'checking') {
+    return (
+      <main className="loading">
+        <Loader2 className="spin" size={28} />
+        <span>Checking your session</span>
+      </main>
+    );
+  }
+
+  if (authStatus === 'guest') {
+    return (
+      <AuthScreen
+        authError={authError}
+        authMode={authMode}
+        isAuthLoading={isAuthLoading}
+        onDemoLogin={handleDemoLogin}
+        onModeChange={setAuthMode}
+        onSubmit={handleAuthSubmit}
+      />
+    );
+  }
 
   if (!bootstrap || !dashboard) {
     return (
@@ -473,6 +574,10 @@ export function App() {
             <p className="eyebrow">Welcome back</p>
             <h1>{bootstrap.user.name}</h1>
           </div>
+          <button type="button" className="secondary-button compact-button" onClick={handleLogout}>
+            <LogOut size={16} />
+            Sign out
+          </button>
         </header>
 
         <section className="daily-grid">
@@ -845,6 +950,77 @@ function updateTechnologyFocus(
   });
 
   return [...technologies.values()].sort((a, b) => b.minutes - a.minutes).slice(0, 6);
+}
+
+function AuthScreen({
+  authError,
+  authMode,
+  isAuthLoading,
+  onDemoLogin,
+  onModeChange,
+  onSubmit,
+}: {
+  authError: string;
+  authMode: AuthMode;
+  isAuthLoading: boolean;
+  onDemoLogin: () => void;
+  onModeChange: (mode: AuthMode) => void;
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void;
+}) {
+  const isRegistering = authMode === 'register';
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-panel">
+        <div className="brand auth-brand">
+          <div className="brand-mark">CT</div>
+          <div>
+            <strong>CodeTrail</strong>
+            <span>Developer progress OS</span>
+          </div>
+        </div>
+
+        <div>
+          <p className="eyebrow">Track the work</p>
+          <h1>{isRegistering ? 'Create your account' : 'Welcome back'}</h1>
+          <p className="auth-copy">Log focused work, learning time, goals, streaks, and weekly AI coaching from one private dashboard.</p>
+        </div>
+
+        <form className="auth-form" onSubmit={onSubmit}>
+          {isRegistering && (
+            <label>
+              <span>Name</span>
+              <input name="name" type="text" minLength={2} maxLength={80} required />
+            </label>
+          )}
+          <label>
+            <span>Email</span>
+            <input name="email" type="email" autoComplete="email" required />
+          </label>
+          <label>
+            <span>Password</span>
+            <input name="password" type="password" minLength={8} autoComplete={isRegistering ? 'new-password' : 'current-password'} required />
+          </label>
+
+          {authError && <p className="auth-error">{authError}</p>}
+
+          <button type="submit" className="primary-button" disabled={isAuthLoading}>
+            {isAuthLoading ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
+            {isRegistering ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="auth-actions">
+          <button type="button" className="secondary-button" onClick={onDemoLogin} disabled={isAuthLoading}>
+            Try demo
+          </button>
+          <button type="button" className="text-button" onClick={() => onModeChange(isRegistering ? 'login' : 'register')}>
+            {isRegistering ? 'I already have an account' : 'Create an account'}
+          </button>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function RangeChart({

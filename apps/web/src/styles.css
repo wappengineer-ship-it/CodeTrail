@@ -34,6 +34,92 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(135deg, rgba(24, 32, 47, 0.88), rgba(24, 32, 47, 0.68)),
+    url('https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1600&q=80') center / cover;
+}
+
+.auth-panel {
+  display: grid;
+  width: min(100%, 460px);
+  gap: 22px;
+  padding: 28px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(16, 23, 34, 0.24);
+}
+
+.auth-brand {
+  margin-bottom: 0;
+}
+
+.auth-copy {
+  margin: 10px 0 0;
+  color: #5f6f85;
+  line-height: 1.6;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.auth-form label span {
+  color: #5f6f85;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.auth-form input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid #ccd5e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #18202f;
+}
+
+.auth-error {
+  margin: 0;
+  color: #a03b2e;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.auth-actions .secondary-button {
+  flex: 1 1 140px;
+}
+
+.text-button {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: #2f80ed;
+  font-weight: 800;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
@@ -172,6 +258,10 @@ h2 {
   border: 1px solid #cdd6e3;
   background: #ffffff;
   color: #18202f;
+}
+
+.compact-button {
+  white-space: nowrap;
 }
 
 .danger-button {

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { randomBytes, scryptSync } from 'node:crypto';
 
 const prisma = new PrismaClient();
 
@@ -11,13 +12,20 @@ const technologies = [
   { name: 'CSS', category: 'Frontend', color: '#d49a2a' },
 ];
 
+function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('hex');
+  const key = scryptSync(password, salt, 64);
+  return `${salt}:${key.toString('hex')}`;
+}
+
 async function main() {
   const user = await prisma.user.upsert({
     where: { email: 'demo@codetrail.dev' },
-    update: {},
+    update: { passwordHash: hashPassword('codetrail-demo') },
     create: {
       name: 'Self-Taught Developer',
       email: 'demo@codetrail.dev',
+      passwordHash: hashPassword('codetrail-demo'),
       timezone: 'Africa/Johannesburg',
     },
   });

@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+export const authSchema = z.object({
+  email: z.string().email().max(180).transform((email) => email.toLowerCase()),
+  password: z.string().min(8).max(120),
+});
+
+export const registerSchema = authSchema.extend({
+  name: z.string().min(2).max(80),
+});
+
 export const sessionCreateSchema = z.object({
   type: z.enum(['CODING', 'LEARNING']),
   title: z.string().min(2).max(120),

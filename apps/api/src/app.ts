@@ -9,7 +9,7 @@ import { router } from './routes.js';
 export const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN }));
+app.use(cors({ credentials: true, origin: env.CORS_ORIGIN === '*' ? true : env.CORS_ORIGIN }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 

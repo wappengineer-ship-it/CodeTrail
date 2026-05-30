@@ -5,6 +5,13 @@ export type Technology = {
   color: string;
 };
 
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  timezone: string;
+};
+
 export type Project = {
   id: string;
   name: string;
@@ -50,7 +57,7 @@ export type LearningSession = {
 };
 
 export type BootstrapData = {
-  user: { id: string; name: string; email: string };
+  user: AuthUser;
   technologies: Technology[];
   projects: Project[];
   goals: Goal[];
