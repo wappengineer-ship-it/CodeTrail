@@ -4,7 +4,9 @@ import { daysAgo, startOfDay, startOfWeek, toHours } from './dates.js';
 import {
   authSchema,
   goalCreateSchema,
+  goalUpdateSchema,
   projectCreateSchema,
+  projectUpdateSchema,
   registerSchema,
   sessionCreateSchema,
   sessionDeleteSchema,
@@ -164,6 +166,21 @@ async function validateTechnologyIds(userId: string, technologyIds: string[]) {
   }
 
   return uniqueTechnologyIds;
+}
+
+async function validateProjectId(userId: string, projectId: string | undefined) {
+  if (!projectId) return undefined;
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, userId },
+    select: { id: true },
+  });
+
+  if (!project) {
+    throw new Error('Invalid project selection');
+  }
+
+  return project.id;
 }
 
 async function advanceHourGoals(input: { minutes: number; userId: string }) {
@@ -508,13 +525,14 @@ router.post('/sessions', async (req, res, next) => {
     const user = getCurrentUser(req);
     const input = sessionCreateSchema.parse(req.body);
     const technologyIds = await validateTechnologyIds(user.id, input.technologyIds);
+    const projectId = await validateProjectId(user.id, input.projectId);
     const sessionDate = input.sessionDate ? new Date(input.sessionDate) : new Date();
 
     if (input.type === 'CODING') {
       const session = await prisma.codingSession.create({
         data: {
           userId: user.id,
-          projectId: input.projectId,
+          projectId,
           title: input.title,
           notes: input.notes,
           minutes: input.minutes,
@@ -653,14 +671,52 @@ router.post('/projects', async (req, res, next) => {
   }
 });
 
+router.patch('/projects/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const input = projectUpdateSchema.parse({ ...req.body, id: req.params.id });
+    const technologyIds = await validateTechnologyIds(user.id, input.technologyIds);
+    const project = await prisma.project.update({
+      where: { id: input.id, userId: user.id },
+      data: {
+        name: input.name,
+        description: input.description,
+        status: input.status,
+        repository: input.repository || null,
+        liveUrl: input.liveUrl || null,
+        startedAt: input.startedAt ? new Date(input.startedAt) : undefined,
+        technologies: {
+          deleteMany: {},
+          create: technologyIds.map((technologyId) => ({ technologyId })),
+        },
+      },
+      include: { technologies: { include: { technology: true } } },
+    });
+    res.json(project);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/projects/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    await prisma.project.delete({ where: { id: String(req.params.id), userId: user.id } });
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/goals', async (req, res, next) => {
   try {
     const user = getCurrentUser(req);
     const input = goalCreateSchema.parse(req.body);
+    const projectId = await validateProjectId(user.id, input.projectId);
     const goal = await prisma.goal.create({
       data: {
         userId: user.id,
-        projectId: input.projectId,
+        projectId,
         title: input.title,
         description: input.description,
         cadence: input.cadence,
@@ -680,6 +736,41 @@ router.post('/goals', async (req, res, next) => {
       });
       return;
     }
+    next(error);
+  }
+});
+
+router.patch('/goals/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    const input = goalUpdateSchema.parse({ ...req.body, id: req.params.id });
+    const projectId = await validateProjectId(user.id, input.projectId);
+    const goal = await prisma.goal.update({
+      where: { id: input.id, userId: user.id },
+      data: {
+        projectId: projectId || null,
+        title: input.title,
+        description: input.description,
+        cadence: input.cadence,
+        status: input.status,
+        targetValue: input.targetValue,
+        currentValue: input.currentValue,
+        unit: input.unit,
+        dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      },
+    });
+    res.json(goal);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/goals/:id', async (req, res, next) => {
+  try {
+    const user = getCurrentUser(req);
+    await prisma.goal.delete({ where: { id: String(req.params.id), userId: user.id } });
+    res.status(204).send();
+  } catch (error) {
     next(error);
   }
 });

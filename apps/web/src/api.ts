@@ -1,5 +1,5 @@
 import { mockBootstrap, mockDashboard } from './mockData';
-import type { AuthUser, BootstrapData, CodingSession, DashboardData, LearningSession } from './types';
+import type { AuthUser, BootstrapData, CodingSession, DashboardData, Goal, LearningSession, Project } from './types';
 
 const rawApiUrl = import.meta.env.VITE_API_URL || '';
 const API_URL = rawApiUrl && !rawApiUrl.startsWith('http') ? `https://${rawApiUrl}` : rawApiUrl;
@@ -106,6 +106,83 @@ export async function updateTechnology(id: string, payload: { category: string; 
 
 export async function deleteTechnology(id: string) {
   return request<void>(`/technologies/${id}`, { method: 'DELETE' });
+}
+
+export async function createProject(payload: {
+  description: string;
+  liveUrl?: string;
+  name: string;
+  repository?: string;
+  startedAt?: string;
+  status: string;
+  technologyIds: string[];
+}) {
+  return request<Project>('/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProject(
+  id: string,
+  payload: {
+    description: string;
+    liveUrl?: string;
+    name: string;
+    repository?: string;
+    startedAt?: string;
+    status: string;
+    technologyIds: string[];
+  },
+) {
+  return request<Project>(`/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProject(id: string) {
+  return request<void>(`/projects/${id}`, { method: 'DELETE' });
+}
+
+export async function createGoal(payload: {
+  cadence: Goal['cadence'];
+  currentValue: number;
+  description?: string;
+  dueDate?: string;
+  projectId?: string;
+  targetValue: number;
+  title: string;
+  unit: string;
+}) {
+  return request<Goal>('/goals', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateGoal(
+  id: string,
+  payload: {
+    cadence: Goal['cadence'];
+    currentValue: number;
+    description?: string;
+    dueDate?: string;
+    projectId?: string;
+    status: Goal['status'];
+    targetValue: number;
+    title: string;
+    unit: string;
+  },
+) {
+  return request<Goal>(`/goals/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteGoal(id: string) {
+  return request<void>(`/goals/${id}`, { method: 'DELETE' });
 }
 
 export async function generateWeeklySummary() {

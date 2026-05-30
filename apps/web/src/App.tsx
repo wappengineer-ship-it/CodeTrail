@@ -4,8 +4,12 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } 
 import { ArrowUp, BookOpen, Brain, Code2, Flame, Goal, Loader2, LogOut, Pencil, Play, Plus, RotateCcw, Settings, Sparkles, Square, TimerReset, Trash2 } from 'lucide-react';
 import {
   ApiError,
+  createGoal,
+  createProject,
   createSession,
   createTechnology,
+  deleteGoal,
+  deleteProject,
   deleteSession,
   deleteTechnology,
   generateWeeklySummary,
@@ -17,14 +21,36 @@ import {
   logout,
   register,
   updateSession,
+  updateGoal,
+  updateProject,
   updateTechnology,
 } from './api';
-import type { BootstrapData, CodingSession, DashboardData, LearningSession, Technology } from './types';
+import type { BootstrapData, CodingSession, DashboardData, Goal as GoalData, LearningSession, Project, Technology } from './types';
 
 type SessionMode = 'CODING' | 'LEARNING';
 type DashboardRange = 'today' | 'week' | 'month' | 'all';
 type AuthMode = 'login' | 'register';
 type TechnologyForm = Pick<Technology, 'category' | 'color' | 'name'>;
+type ProjectForm = {
+  description: string;
+  liveUrl: string;
+  name: string;
+  repository: string;
+  startedAt: string;
+  status: string;
+  technologyIds: string[];
+};
+type GoalForm = {
+  cadence: GoalData['cadence'];
+  currentValue: string;
+  description: string;
+  dueDate: string;
+  projectId: string;
+  status: GoalData['status'];
+  targetValue: string;
+  title: string;
+  unit: string;
+};
 const TIMER_STORAGE_KEY = 'codetrail.timer.v1';
 const QUICK_LOG_STORAGE_KEY = 'codetrail.quick-log.v1';
 const dashboardRangeOptions: { label: string; value: DashboardRange }[] = [
@@ -87,6 +113,26 @@ const defaultTechnologyForm: TechnologyForm = {
   color: '#2f80ed',
   name: '',
 };
+const defaultProjectForm: ProjectForm = {
+  description: '',
+  liveUrl: '',
+  name: '',
+  repository: '',
+  startedAt: '',
+  status: 'active',
+  technologyIds: [],
+};
+const defaultGoalForm: GoalForm = {
+  cadence: 'WEEKLY',
+  currentValue: '0',
+  description: '',
+  dueDate: '',
+  projectId: '',
+  status: 'ACTIVE',
+  targetValue: '12',
+  title: '',
+  unit: 'hours',
+};
 const rateLimitMessage = 'Too many attempts. Please wait a bit and try again.';
 
 export function App() {
@@ -125,6 +171,16 @@ export function App() {
   const [isTechnologySaving, setIsTechnologySaving] = useState(false);
   const [deletingTechnologyId, setDeletingTechnologyId] = useState<string | null>(null);
   const [technologyMessage, setTechnologyMessage] = useState('');
+  const [projectForm, setProjectForm] = useState<ProjectForm>(defaultProjectForm);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [isProjectSaving, setIsProjectSaving] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [projectMessage, setProjectMessage] = useState('');
+  const [goalForm, setGoalForm] = useState<GoalForm>(defaultGoalForm);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [isGoalSaving, setIsGoalSaving] = useState(false);
+  const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
+  const [goalMessage, setGoalMessage] = useState('');
   const [showBackToTop, setShowBackToTop] = useState(false);
   const timerStartedAt = useRef<number | null>(null);
   const elapsedBeforeStart = useRef(0);
@@ -577,6 +633,142 @@ export function App() {
     }
   }
 
+  function startEditingProject(project: Project) {
+    setEditingProjectId(project.id);
+    setProjectForm({
+      description: project.description,
+      liveUrl: project.liveUrl ?? '',
+      name: project.name,
+      repository: project.repository ?? '',
+      startedAt: toDateInput(project.startedAt),
+      status: project.status,
+      technologyIds: project.technologies.map(({ technology }) => technology.id),
+    });
+    setProjectMessage('');
+  }
+
+  function resetProjectForm() {
+    setEditingProjectId(null);
+    setProjectForm(defaultProjectForm);
+  }
+
+  function toggleProjectTechnology(technologyId: string, checked: boolean) {
+    setProjectForm((form) => ({
+      ...form,
+      technologyIds: checked ? [...form.technologyIds, technologyId] : form.technologyIds.filter((id) => id !== technologyId),
+    }));
+  }
+
+  async function handleProjectSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProjectMessage('');
+    setIsProjectSaving(true);
+
+    const payload = {
+      ...projectForm,
+      liveUrl: projectForm.liveUrl || undefined,
+      repository: projectForm.repository || undefined,
+      startedAt: projectForm.startedAt ? new Date(`${projectForm.startedAt}T00:00:00.000Z`).toISOString() : undefined,
+    };
+
+    try {
+      if (editingProjectId) {
+        await updateProject(editingProjectId, payload);
+      } else {
+        await createProject(payload);
+      }
+      resetProjectForm();
+      await refresh();
+    } catch {
+      setProjectMessage('Could not save this project. Check the fields and try again.');
+    } finally {
+      setIsProjectSaving(false);
+    }
+  }
+
+  async function handleDeleteProject(project: Project) {
+    setProjectMessage('');
+    setDeletingProjectId(project.id);
+
+    try {
+      await deleteProject(project.id);
+      if (editingProjectId === project.id) resetProjectForm();
+      await refresh();
+    } catch {
+      setProjectMessage('Could not delete this project.');
+    } finally {
+      setDeletingProjectId(null);
+    }
+  }
+
+  function startEditingGoal(goal: GoalData) {
+    setEditingGoalId(goal.id);
+    setGoalForm({
+      cadence: goal.cadence,
+      currentValue: String(goal.currentValue),
+      description: goal.description ?? '',
+      dueDate: toDateInput(goal.dueDate),
+      projectId: goal.projectId ?? '',
+      status: goal.status,
+      targetValue: String(goal.targetValue),
+      title: goal.title,
+      unit: goal.unit,
+    });
+    setGoalMessage('');
+  }
+
+  function resetGoalForm() {
+    setEditingGoalId(null);
+    setGoalForm(defaultGoalForm);
+  }
+
+  async function handleGoalSubmit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGoalMessage('');
+    setIsGoalSaving(true);
+
+    const payload = {
+      cadence: goalForm.cadence,
+      currentValue: Number(goalForm.currentValue),
+      description: goalForm.description || undefined,
+      dueDate: goalForm.dueDate ? new Date(`${goalForm.dueDate}T00:00:00.000Z`).toISOString() : undefined,
+      projectId: goalForm.projectId || undefined,
+      status: goalForm.status,
+      targetValue: Number(goalForm.targetValue),
+      title: goalForm.title,
+      unit: goalForm.unit,
+    };
+
+    try {
+      if (editingGoalId) {
+        await updateGoal(editingGoalId, payload);
+      } else {
+        await createGoal(payload);
+      }
+      resetGoalForm();
+      await refresh();
+    } catch {
+      setGoalMessage('Could not save this goal. Check the fields and try again.');
+    } finally {
+      setIsGoalSaving(false);
+    }
+  }
+
+  async function handleDeleteGoal(goal: GoalData) {
+    setGoalMessage('');
+    setDeletingGoalId(goal.id);
+
+    try {
+      await deleteGoal(goal.id);
+      if (editingGoalId === goal.id) resetGoalForm();
+      await refresh();
+    } catch {
+      setGoalMessage('Could not delete this goal.');
+    } finally {
+      setDeletingGoalId(null);
+    }
+  }
+
   const recentActivity = useMemo(() => {
     if (!bootstrap) return [];
     return [
@@ -887,10 +1079,189 @@ export function App() {
             <div className="panel-heading">
               <div>
                 <p className="eyebrow">Settings</p>
-                <h2>Technologies</h2>
+                <h2>Workspace data</h2>
               </div>
             </div>
 
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <h3>Projects</h3>
+              </div>
+              <form className="settings-form project-form" onSubmit={handleProjectSubmit}>
+                <label>
+                  <span>Name</span>
+                  <input value={projectForm.name} onChange={(event) => setProjectForm((form) => ({ ...form, name: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Status</span>
+                  <input value={projectForm.status} onChange={(event) => setProjectForm((form) => ({ ...form, status: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Started</span>
+                  <input type="date" value={projectForm.startedAt} onChange={(event) => setProjectForm((form) => ({ ...form, startedAt: event.target.value }))} />
+                </label>
+                <label className="wide-field">
+                  <span>Description</span>
+                  <textarea value={projectForm.description} onChange={(event) => setProjectForm((form) => ({ ...form, description: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Repository</span>
+                  <input type="url" value={projectForm.repository} onChange={(event) => setProjectForm((form) => ({ ...form, repository: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Live URL</span>
+                  <input type="url" value={projectForm.liveUrl} onChange={(event) => setProjectForm((form) => ({ ...form, liveUrl: event.target.value }))} />
+                </label>
+                <fieldset className="wide-field">
+                  <legend>Technologies</legend>
+                  <div className="tech-picker">
+                    {bootstrap.technologies.map((technology) => (
+                      <label key={technology.id} style={{ borderColor: technology.color }}>
+                        <input
+                          type="checkbox"
+                          checked={projectForm.technologyIds.includes(technology.id)}
+                          onChange={(event) => toggleProjectTechnology(technology.id, event.target.checked)}
+                        />
+                        {technology.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                <button type="submit" className="primary-button" disabled={isProjectSaving}>
+                  {isProjectSaving ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+                  {editingProjectId ? 'Save project' : 'Add project'}
+                </button>
+                {editingProjectId && (
+                  <button type="button" className="secondary-button" onClick={resetProjectForm}>
+                    Cancel
+                  </button>
+                )}
+              </form>
+              {projectMessage && <p className="settings-message">{projectMessage}</p>}
+              <div className="settings-list">
+                {bootstrap.projects.map((project) => (
+                  <div className="settings-row" key={project.id}>
+                    <div>
+                      <strong>{project.name}</strong>
+                      <span>{project.status}</span>
+                    </div>
+                    <button type="button" className="edit-activity" onClick={() => startEditingProject(project)} title="Edit project" aria-label={`Edit ${project.name}`}>
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="delete-activity"
+                      onClick={() => handleDeleteProject(project)}
+                      disabled={deletingProjectId === project.id}
+                      title="Delete project"
+                      aria-label={`Delete ${project.name}`}
+                    >
+                      {deletingProjectId === project.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <h3>Goals</h3>
+              </div>
+              <form className="settings-form goal-form" onSubmit={handleGoalSubmit}>
+                <label className="wide-field">
+                  <span>Title</span>
+                  <input value={goalForm.title} onChange={(event) => setGoalForm((form) => ({ ...form, title: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Cadence</span>
+                  <select value={goalForm.cadence} onChange={(event) => setGoalForm((form) => ({ ...form, cadence: event.target.value as GoalData['cadence'] }))}>
+                    <option value="DAILY">Daily</option>
+                    <option value="WEEKLY">Weekly</option>
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="MILESTONE">Milestone</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Status</span>
+                  <select value={goalForm.status} onChange={(event) => setGoalForm((form) => ({ ...form, status: event.target.value as GoalData['status'] }))}>
+                    <option value="ACTIVE">Active</option>
+                    <option value="PAUSED">Paused</option>
+                    <option value="COMPLETED">Completed</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Current</span>
+                  <input type="number" min="0" step="0.1" value={goalForm.currentValue} onChange={(event) => setGoalForm((form) => ({ ...form, currentValue: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Target</span>
+                  <input type="number" min="1" step="0.1" value={goalForm.targetValue} onChange={(event) => setGoalForm((form) => ({ ...form, targetValue: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Unit</span>
+                  <input value={goalForm.unit} onChange={(event) => setGoalForm((form) => ({ ...form, unit: event.target.value }))} required />
+                </label>
+                <label>
+                  <span>Due date</span>
+                  <input type="date" value={goalForm.dueDate} onChange={(event) => setGoalForm((form) => ({ ...form, dueDate: event.target.value }))} />
+                </label>
+                <label>
+                  <span>Project</span>
+                  <select value={goalForm.projectId} onChange={(event) => setGoalForm((form) => ({ ...form, projectId: event.target.value }))}>
+                    <option value="">No project</option>
+                    {bootstrap.projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide-field">
+                  <span>Description</span>
+                  <textarea value={goalForm.description} onChange={(event) => setGoalForm((form) => ({ ...form, description: event.target.value }))} />
+                </label>
+                <button type="submit" className="primary-button" disabled={isGoalSaving}>
+                  {isGoalSaving ? <Loader2 className="spin" size={16} /> : <Plus size={16} />}
+                  {editingGoalId ? 'Save goal' : 'Add goal'}
+                </button>
+                {editingGoalId && (
+                  <button type="button" className="secondary-button" onClick={resetGoalForm}>
+                    Cancel
+                  </button>
+                )}
+              </form>
+              {goalMessage && <p className="settings-message">{goalMessage}</p>}
+              <div className="settings-list">
+                {bootstrap.goals.map((goal) => (
+                  <div className="settings-row" key={goal.id}>
+                    <div>
+                      <strong>{goal.title}</strong>
+                      <span>
+                        {goal.status.toLowerCase()} - {formatGoalValue(goal.currentValue)}/{formatGoalValue(goal.targetValue)} {goal.unit}
+                      </span>
+                    </div>
+                    <button type="button" className="edit-activity" onClick={() => startEditingGoal(goal)} title="Edit goal" aria-label={`Edit ${goal.title}`}>
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="delete-activity"
+                      onClick={() => handleDeleteGoal(goal)}
+                      disabled={deletingGoalId === goal.id}
+                      title="Delete goal"
+                      aria-label={`Delete ${goal.title}`}
+                    >
+                      {deletingGoalId === goal.id ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="settings-section">
+              <div className="settings-section-heading">
+                <h3>Technologies</h3>
+              </div>
             <form className="technology-form" onSubmit={handleTechnologySubmit}>
               <label>
                 <span>Name</span>
@@ -957,6 +1328,7 @@ export function App() {
                 </div>
               ))}
             </div>
+            </section>
           </article>
         </section>
       </section>
@@ -1055,6 +1427,10 @@ function formatHours(hours: number) {
 
 function formatGoalValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function toDateInput(value?: string) {
+  return value ? value.slice(0, 10) : '';
 }
 
 function advanceVisibleGoals(goals: BootstrapData['goals'], minutes: number) {

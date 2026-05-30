@@ -43,6 +43,10 @@ export const projectCreateSchema = z.object({
   technologyIds: z.array(z.string()).default([]),
 });
 
+export const projectUpdateSchema = projectCreateSchema.extend({
+  id: z.string().min(1),
+});
+
 export const goalCreateSchema = z.object({
   title: z.string().min(2).max(120),
   description: z.string().max(1000).optional(),
@@ -52,6 +56,11 @@ export const goalCreateSchema = z.object({
   unit: z.string().min(1).max(40),
   dueDate: z.string().datetime().optional(),
   projectId: z.string().optional(),
+});
+
+export const goalUpdateSchema = goalCreateSchema.extend({
+  id: z.string().min(1),
+  status: z.enum(['ACTIVE', 'COMPLETED', 'PAUSED']).default('ACTIVE'),
 });
 
 export const sessionDeleteSchema = z.object({

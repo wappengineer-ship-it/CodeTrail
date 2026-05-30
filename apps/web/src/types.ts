@@ -17,6 +17,9 @@ export type Project = {
   name: string;
   description: string;
   status: string;
+  repository?: string;
+  liveUrl?: string;
+  startedAt?: string;
   technologies: { technology: Technology }[];
 };
 
