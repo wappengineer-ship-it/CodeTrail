@@ -805,6 +805,26 @@ fieldset {
   padding: 9px 10px;
 }
 
+.settings-form .tech-picker label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  color: #18202f;
+  background: #fbfcff;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.settings-form .tech-picker input {
+  min-height: auto;
+  width: auto;
+  padding: 0;
+}
+
 .settings-form textarea {
   min-height: 86px;
   resize: vertical;
