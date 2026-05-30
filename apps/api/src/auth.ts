@@ -8,6 +8,8 @@ import { prisma } from './prisma.js';
 const scrypt = promisify(scryptCallback);
 const SESSION_COOKIE = 'codetrail_session';
 const SESSION_DAYS = 30;
+const isProduction = env.NODE_ENV === 'production';
+const cookieSameSite = isProduction ? 'none' : 'lax';
 
 export type PublicUser = Pick<User, 'id' | 'name' | 'email' | 'timezone'>;
 export type AuthenticatedRequest = Request & { user: PublicUser };
@@ -59,16 +61,16 @@ export function setSessionCookie(res: Response, token: string) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
-    sameSite: 'lax',
-    secure: env.NODE_ENV === 'production',
+    sameSite: cookieSameSite,
+    secure: isProduction,
   });
 }
 
 export function clearSessionCookie(res: Response) {
   res.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: env.NODE_ENV === 'production',
+    sameSite: cookieSameSite,
+    secure: isProduction,
   });
 }
 
