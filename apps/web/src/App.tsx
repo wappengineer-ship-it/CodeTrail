@@ -87,6 +87,7 @@ const defaultTechnologyForm: TechnologyForm = {
   color: '#2f80ed',
   name: '',
 };
+const rateLimitMessage = 'Too many attempts. Please wait a bit and try again.';
 
 export function App() {
   const [storedQuickLog] = useState(readStoredQuickLog);
@@ -490,7 +491,11 @@ export function App() {
       }
       setAuthStatus('authenticated');
     } catch (error) {
-      setAuthError(error instanceof ApiError && error.status === 409 ? 'That email already has an account.' : 'Could not sign in. Check your details and try again.');
+      if (error instanceof ApiError && error.status === 429) {
+        setAuthError(rateLimitMessage);
+      } else {
+        setAuthError(error instanceof ApiError && error.status === 409 ? 'That email already has an account.' : 'Could not sign in. Check your details and try again.');
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -503,8 +508,8 @@ export function App() {
     try {
       await loginDemo();
       setAuthStatus('authenticated');
-    } catch {
-      setAuthError('The demo account is not ready yet. Try running the seed script.');
+    } catch (error) {
+      setAuthError(error instanceof ApiError && error.status === 429 ? rateLimitMessage : 'The demo account is not ready yet. Try running the seed script.');
     } finally {
       setIsAuthLoading(false);
     }
