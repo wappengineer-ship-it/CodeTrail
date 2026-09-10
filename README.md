@@ -1,8 +1,8 @@
 # CodeTrail
 
-CodeTrail is a full-stack coding, learning, and work tracker for self-taught developers. It helps users log focused work sessions, track learning time, monitor weekly goals and streaks, manage their technology stack, and generate AI-assisted weekly summaries.
+CodeTrail is a coding, learning, and work tracker for self-taught developers. It helps users log focused work sessions, track learning time, monitor weekly goals and streaks, manage their technology stack, and generate weekly summaries.
 
-The app is built as a portfolio flagship project: a real product-shaped dashboard with authentication, user-owned data, PostgreSQL persistence, Prisma relationships, Render deployment, and a responsive React interface.
+The repository includes two frontend apps: the original API-backed dashboard and a separate browser-only dashboard that uses localStorage. Both share the same product UI.
 
 ## Screenshots
 
@@ -20,10 +20,8 @@ The app is built as a portfolio flagship project: a real product-shaped dashboar
 
 ## Highlights
 
-- Email/password authentication with HTTP-only session cookies
-- Rate-limited login, register, and demo auth routes
-- Demo sign-in for quick portfolio review
-- User-owned projects, technologies, sessions, goals, and summaries
+- Local demo, login, and registration screens backed by browser storage
+- Persistent projects, technologies, sessions, goals, and summaries
 - Quick session logging for Work and Learning
 - Start/stop timer with local persistence
 - Today, week, month, and all-time dashboard ranges
@@ -31,8 +29,8 @@ The app is built as a portfolio flagship project: a real product-shaped dashboar
 - Daily totals chart and history view
 - Technology focus chart powered by tagged sessions
 - Settings page for adding, editing, and deleting technologies
-- AI weekly summary endpoint using OpenAI when `OPENAI_API_KEY` is configured, with a deterministic fallback when no key or quota is available
-- Render blueprint for API, static web app, and PostgreSQL database
+- Deterministic weekly summaries generated from local progress data
+- Optional full-stack API, static web app, and PostgreSQL deployment files
 
 ## Tech Stack
 
@@ -45,12 +43,10 @@ The app is built as a portfolio flagship project: a real product-shaped dashboar
 
 ## Product Flow
 
-1. A user signs in, registers, or clicks **Try demo**.
-2. The API creates a session, stores a hashed token, and sends the raw token in an HTTP-only cookie.
-3. Protected API routes resolve the current user from the session cookie.
-4. Dashboard data is scoped by `userId`, so each user only sees their own sessions, goals, projects, and technologies.
-5. Users log Work or Learning sessions, optionally tag technologies, and the dashboard updates totals, charts, streaks, and goals.
-6. The weekly AI summary uses current session and goal data to generate a concise coaching note.
+1. The browser initializes a local CodeTrail store with demo data.
+2. Users log Work or Learning sessions, optionally tag technologies, and the dashboard updates totals, charts, streaks, and goals.
+3. Projects, technologies, sessions, goals, and user details are written to localStorage.
+4. The weekly summary is generated from the current local progress data.
 
 ## Repository Structure
 
@@ -73,29 +69,22 @@ Install dependencies:
 npm install
 ```
 
-Copy API environment variables:
+For the localStorage version, no API or database setup is required. Install dependencies and run the separate local app:
 
 ```bash
-cp apps/api/.env.example apps/api/.env
+npm install
+npm run dev:local
 ```
 
-Set `DATABASE_URL` in `apps/api/.env` to a PostgreSQL database.
+The local app runs on `http://localhost:5174`. To reset local data, remove the `codetrail.local.v1` entry from that browser origin's localStorage.
 
-Generate the Prisma client, apply migrations, and seed demo data:
-
-```bash
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-```
-
-Run the app:
+The original full-stack app remains available with:
 
 ```bash
 npm run dev
 ```
 
-The frontend runs on `http://localhost:5173` and proxies API calls to `http://localhost:4000`.
+The API-backed frontend runs on `http://localhost:5173` and requires PostgreSQL and the API environment variables described below.
 
 ## Useful Scripts
 
